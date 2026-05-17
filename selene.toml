@@ -1,1 +1,2 @@
+# Selene loads custom standard libraries by basename from the current directory.
 std = "redis"

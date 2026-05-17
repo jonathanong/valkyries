@@ -4,44 +4,34 @@ import { cacheValkeyClient, rateLimiterValkeyClient } from "../clients.mts";
 import { loadScript } from "../scripts.mts";
 
 const scriptBaseUrl = new URL("../", import.meta.url);
-const scripts = [
-  new Script(loadScript("cache-set-if-not-invalidated.lua", scriptBaseUrl)),
-  new Script(loadScript("cache-delete-with-invalidation.lua", scriptBaseUrl)),
-  new Script(loadScript("get-value-with-ttl.lua", scriptBaseUrl)),
-  new Script(loadScript("get-values-with-ttl.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-reserve.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-ensure-exists.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-add.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-exists.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-mexists.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-exists-if-ready.lua", scriptBaseUrl)),
-  new Script(loadScript("bloom-filter-mexists-if-ready.lua", scriptBaseUrl)),
-  new Script(loadScript("dynamic-config-set-fields.lua", scriptBaseUrl)),
-  new Script(loadScript("rate-limiter-add.lua", scriptBaseUrl)),
-  new Script(loadScript("rate-limiter-get.lua", scriptBaseUrl)),
-  new Script(loadScript("rate-limiter-add-and-check.lua", scriptBaseUrl)),
-] as const;
-
-const [
-  cacheSetIfNotInvalidatedScript,
-  cacheDeleteWithInvalidationScript,
-  getValueWithTtlScript,
-  getValuesWithTtlScript,
-  bloomFilterReserveScript,
-  bloomFilterEnsureExistsScript,
-  bloomFilterAddScript,
-  bloomFilterExistsScript,
-  bloomFilterMexistsScript,
-  bloomFilterExistsIfReadyScript,
-  bloomFilterMexistsIfReadyScript,
-  dynamicConfigSetFieldsScript,
-  rateLimiterAddScript,
-  rateLimiterGetScript,
-  rateLimiterAddAndCheckScript,
-] = scripts;
+const scriptRegistry = {
+  cacheSetIfNotInvalidated: new Script(
+    loadScript("cache-set-if-not-invalidated.lua", scriptBaseUrl),
+  ),
+  cacheDeleteWithInvalidation: new Script(
+    loadScript("cache-delete-with-invalidation.lua", scriptBaseUrl),
+  ),
+  getValueWithTtl: new Script(loadScript("get-value-with-ttl.lua", scriptBaseUrl)),
+  getValuesWithTtl: new Script(loadScript("get-values-with-ttl.lua", scriptBaseUrl)),
+  bloomFilterReserve: new Script(loadScript("bloom-filter-reserve.lua", scriptBaseUrl)),
+  bloomFilterEnsureExists: new Script(loadScript("bloom-filter-ensure-exists.lua", scriptBaseUrl)),
+  bloomFilterAdd: new Script(loadScript("bloom-filter-add.lua", scriptBaseUrl)),
+  bloomFilterExists: new Script(loadScript("bloom-filter-exists.lua", scriptBaseUrl)),
+  bloomFilterMexists: new Script(loadScript("bloom-filter-mexists.lua", scriptBaseUrl)),
+  bloomFilterExistsIfReady: new Script(
+    loadScript("bloom-filter-exists-if-ready.lua", scriptBaseUrl),
+  ),
+  bloomFilterMexistsIfReady: new Script(
+    loadScript("bloom-filter-mexists-if-ready.lua", scriptBaseUrl),
+  ),
+  dynamicConfigSetFields: new Script(loadScript("dynamic-config-set-fields.lua", scriptBaseUrl)),
+  rateLimiterAdd: new Script(loadScript("rate-limiter-add.lua", scriptBaseUrl)),
+  rateLimiterGet: new Script(loadScript("rate-limiter-get.lua", scriptBaseUrl)),
+  rateLimiterAddAndCheck: new Script(loadScript("rate-limiter-add-and-check.lua", scriptBaseUrl)),
+} as const;
 
 afterAll(() => {
-  for (const script of scripts) script.release();
+  for (const script of Object.values(scriptRegistry)) script.release();
 });
 
 describe("lua scripts", () => {
@@ -52,7 +42,7 @@ describe("lua scripts", () => {
     try {
       await cacheValkeyClient.set(invalidationKeys[1]!, "1");
 
-      const result = await cacheValkeyClient.invokeScript(cacheSetIfNotInvalidatedScript, {
+      const result = await cacheValkeyClient.invokeScript(scriptRegistry.cacheSetIfNotInvalidated, {
         keys: [...cacheKeys, ...invalidationKeys],
         args: ["2", "30", "value-a", "30", "value-b"],
       });
@@ -73,10 +63,13 @@ describe("lua scripts", () => {
       await cacheValkeyClient.set(cacheKeys[0]!, "value-a");
       await cacheValkeyClient.set(cacheKeys[1]!, "value-b");
 
-      const result = await cacheValkeyClient.invokeScript(cacheDeleteWithInvalidationScript, {
-        keys: [...cacheKeys, ...invalidationKeys],
-        args: ["2", "30"],
-      });
+      const result = await cacheValkeyClient.invokeScript(
+        scriptRegistry.cacheDeleteWithInvalidation,
+        {
+          keys: [...cacheKeys, ...invalidationKeys],
+          args: ["2", "30"],
+        },
+      );
 
       expect(Number(result)).toBe(2);
       expect(await cacheValkeyClient.get(cacheKeys[0]!)).toBeNull();
@@ -99,15 +92,15 @@ describe("lua scripts", () => {
       await cacheValkeyClient.customCommand(["BF.RESERVE", bloomKey, "0.01", "100"]);
       await cacheValkeyClient.customCommand(["BF.ADD", bloomKey, `${id}-hit`]);
 
-      const hit = await cacheValkeyClient.invokeScript(getValueWithTtlScript, {
+      const hit = await cacheValkeyClient.invokeScript(scriptRegistry.getValueWithTtl, {
         keys: [hitKey],
         args: [bloomKey],
       });
-      const miss = await cacheValkeyClient.invokeScript(getValueWithTtlScript, {
+      const miss = await cacheValkeyClient.invokeScript(scriptRegistry.getValueWithTtl, {
         keys: [missKey],
         args: [bloomKey],
       });
-      const batch = await cacheValkeyClient.invokeScript(getValuesWithTtlScript, {
+      const batch = await cacheValkeyClient.invokeScript(scriptRegistry.getValuesWithTtl, {
         keys: [hitKey, missKey],
         args: [bloomKey],
       });
@@ -128,58 +121,58 @@ describe("lua scripts", () => {
     const readyKey = `lua:${id}:ready`;
     try {
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterEnsureExistsScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterEnsureExists, {
           keys: [liveKey],
           args: ["0.01", "100", "2"],
         }),
       ).toBe(1);
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterEnsureExistsScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterEnsureExists, {
           keys: [liveKey],
           args: ["0.01", "100", "2"],
         }),
       ).toBe(0);
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterReserveScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterReserve, {
           keys: [buildingKey],
           args: ["0.01", "100", "2"],
         }),
       ).toEqual("OK");
 
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterAddScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterAdd, {
           keys: [liveKey, buildingKey],
           args: ["one", "two"],
         }),
       ).toBe(1);
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterExistsScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterExists, {
           keys: [liveKey],
           args: ["one"],
         }),
       ).toBe(1);
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterMexistsScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterMexists, {
           keys: [liveKey],
           args: ["one", "missing"],
         }),
       ).toEqual([1, 0]);
 
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterExistsIfReadyScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterExistsIfReady, {
           keys: [readyKey, liveKey],
           args: ["one"],
         }),
       ).toBe(-1);
       await cacheValkeyClient.set(readyKey, "1");
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterExistsIfReadyScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterExistsIfReady, {
           keys: [readyKey, liveKey],
           args: ["one"],
         }),
       ).toBe(1);
       expect(
-        await cacheValkeyClient.invokeScript(bloomFilterMexistsIfReadyScript, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.bloomFilterMexistsIfReady, {
           keys: [readyKey, liveKey],
           args: ["one", "missing"],
         }),
@@ -192,7 +185,7 @@ describe("lua scripts", () => {
   it("writes dynamic config fields with one script call", async () => {
     const key = `lua:${uniqueId("dynamic-config")}`;
     try {
-      const result = await cacheValkeyClient.invokeScript(dynamicConfigSetFieldsScript, {
+      const result = await cacheValkeyClient.invokeScript(scriptRegistry.dynamicConfigSetFields, {
         keys: [key],
         args: ["enabled", "true", "count", "2"],
       });
@@ -214,19 +207,19 @@ describe("lua scripts", () => {
     const keys = [`rate-limiter:lua:{${id}:a}`, `rate-limiter:lua:{${id}:b}`];
     try {
       expect(
-        await rateLimiterValkeyClient.invokeScript(rateLimiterAddScript, {
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAdd, {
           keys,
           args: ["30", "a-1", "b-1"],
         }),
       ).toBe(1);
       expect(
-        await rateLimiterValkeyClient.invokeScript(rateLimiterGetScript, {
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterGet, {
           keys,
           args: ["30"],
         }),
       ).toEqual([1, 1]);
       expect(
-        await rateLimiterValkeyClient.invokeScript(rateLimiterAddAndCheckScript, {
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAddAndCheck, {
           keys,
           args: ["30", "a-2", "b-2"],
         }),
@@ -248,6 +241,11 @@ async function unlink(...groups: string[][]): Promise<void> {
 }
 
 function toFieldMap(fields: unknown): Map<string, string> {
+  if (fields instanceof Map)
+    return new Map([...fields].map(([key, value]) => [String(key), String(value)]));
+  if (fields && typeof fields === "object" && !Array.isArray(fields)) {
+    return new Map(Object.entries(fields).map(([key, value]) => [key, String(value)]));
+  }
   const fieldMap = new Map<string, string>();
   if (!Array.isArray(fields)) return fieldMap;
   for (const field of fields) {
