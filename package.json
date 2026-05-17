@@ -1,6 +1,6 @@
 {
   "name": "valkyries",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Valkey utilities for caches, bloom filters, dynamic configuration, and rate limiting.",
   "license": "MIT",
   "author": "",
