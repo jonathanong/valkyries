@@ -18,6 +18,7 @@ export type ValkeyClientOptions = {
 };
 
 export const urlsToClients = new Map<string, GlideClient>();
+const urlsToClientPromises = new Map<string, Promise<GlideClient>>();
 
 export const cacheValkeyClient = await upsertValkeyClientByUrl(config.cache_url, {
   readFrom: "preferReplica",
@@ -81,9 +82,18 @@ export async function upsertValkeyClientByUrl(
   const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}`;
   const existing = urlsToClients.get(cacheKey);
   if (existing) return existing;
-  const client = await GlideClient.createClient(glideConfigFromUrl(url, options));
-  urlsToClients.set(cacheKey, client);
-  return client;
+  const inFlight = urlsToClientPromises.get(cacheKey);
+  if (inFlight) return inFlight;
+  const clientPromise = GlideClient.createClient(glideConfigFromUrl(url, options))
+    .then((client) => {
+      urlsToClients.set(cacheKey, client);
+      return client;
+    })
+    .finally(() => {
+      urlsToClientPromises.delete(cacheKey);
+    });
+  urlsToClientPromises.set(cacheKey, clientPromise);
+  return await clientPromise;
 }
 
 export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
@@ -100,8 +110,8 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       useTLS: parsed.protocol === "rediss:",
       credentials: parsed.password
         ? {
-            ...(parsed.username ? { username: parsed.username } : {}),
-            password: parsed.password,
+            ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
+            password: decodeURIComponent(parsed.password),
           }
         : undefined,
       readFrom: options?.readFrom,

@@ -35,6 +35,14 @@ describe("clients.generated", () => {
     });
   });
 
+  it("glideConfigFromUrl decodes percent-encoded credentials", () => {
+    const config = glideConfigFromUrl("redis://user%40name:p%40ss%3Aword@localhost:6379");
+    expect(config.credentials).toEqual({
+      username: "user@name",
+      password: "p@ss:word",
+    });
+  });
+
   it("glideConfigFromUrl treats username-only URL as unauthenticated", () => {
     // URLs with username but no password cannot form valid Valkey credentials (library requires password)
     // so credentials are omitted entirely, treating the connection as unauthenticated.
@@ -66,6 +74,17 @@ describe("clients.generated", () => {
     const client1 = await upsertValkeyClientByUrl(url);
     const client2 = await upsertValkeyClientByUrl(url);
     expect(client1).toBe(client2);
+  });
+
+  it("upsertValkeyClientByUrl deduplicates concurrent calls for same URL", async () => {
+    const url = "redis://localhost:7379";
+    const [client1, client2, client3] = await Promise.all([
+      upsertValkeyClientByUrl(url, { readFrom: "primary" }),
+      upsertValkeyClientByUrl(url, { readFrom: "primary" }),
+      upsertValkeyClientByUrl(url, { readFrom: "primary" }),
+    ]);
+    expect(client1).toBe(client2);
+    expect(client2).toBe(client3);
   });
 
   it("upsertValkeyClientByUrl returns different clients for different URLs", async () => {

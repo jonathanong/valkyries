@@ -1,7 +1,8 @@
 import { ValkeyCache } from "../../cache.mts";
-import { it, expect, describe } from "vitest";
+import { it, expect, describe, vi } from "vitest";
 import { valkeyEvents } from "../../events.mts";
 import { cacheValkeyClient } from "../../clients.mts";
+import type { GlideClient } from "@valkey/valkey-glide";
 
 describe("cache.config", () => {
   function waitForCacheSetSkipped(cacheName: string, key: string): Promise<void> {
@@ -243,7 +244,6 @@ describe("cache.config", () => {
       { key: k1, value: { ok: true }, ttl: 5 },
       { key: k2, value: { ok: true }, ttl: 0 }, // 0 is invalid — should fall back to this.ttl
     ]);
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const cacheKey1 = cache.getKey(k1);
     const cacheKey2 = cache.getKey(k2);
@@ -269,12 +269,25 @@ describe("cache.config", () => {
       { key: " " as unknown as string, value: { bad: true } },
       { key, value: { ok: true } },
     ]);
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(await cache.get("" as unknown as string)).toBeNull();
     expect(await cache.get(key)).toEqual({ ok: true });
 
     await cache.delete(key);
+  });
+
+  it("ValkeyCache setBatch rejects when Valkey batch write fails", async () => {
+    const exec = vi.fn().mockRejectedValue(new Error("write failed"));
+    const cache = new ValkeyCache({
+      prefix: "test",
+      ttlSeconds: 10,
+      client: { exec } as unknown as GlideClient,
+    });
+
+    await expect(cache.setBatch([{ key: "a", value: { ok: true } }])).rejects.toThrow(
+      "write failed",
+    );
+    expect(exec).toHaveBeenCalledTimes(1);
   });
 
   it("ValkeyCache delete ignores empty-string keys", async () => {

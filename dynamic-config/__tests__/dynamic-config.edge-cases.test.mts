@@ -42,8 +42,11 @@ describe("dynamic-config.edge-cases", () => {
     expect(config.stringifyField("string", 123)).toBe("123");
     expect(config.stringifyField("number", 42)).toBe("42");
     expect(config.stringifyField("number", 3.14)).toBe("3.14");
+    expect(config.stringifyField("number", "42")).toBe("42");
     expect(config.stringifyField("boolean", true)).toBe("1");
     expect(config.stringifyField("boolean", false)).toBe("0");
+    expect(config.stringifyField("boolean", "true")).toBe("1");
+    expect(config.stringifyField("boolean", "false")).toBe("0");
   });
 
   it("DynamicConfig.parseField handles all types", async () => {
@@ -69,6 +72,39 @@ describe("dynamic-config.edge-cases", () => {
     expect(config.parseField("number", "3.14")).toBe(3.14);
     expect(config.parseField("boolean", "1")).toBe(true);
     expect(config.parseField("boolean", "0")).toBe(false);
+    expect(config.parseField("boolean", "true")).toBe(true);
+    expect(config.parseField("boolean", "false")).toBe(false);
+  });
+
+  it("DynamicConfig rejects invalid number and boolean field values", async () => {
+    const config = new DynamicConfig({
+      key: createDynamicConfigTestKey(),
+      staleTtlSeconds: 10,
+      fieldTypes: {
+        n: "number",
+        b: "boolean",
+      },
+      defaultFields: {
+        n: 0,
+        b: false,
+      },
+    });
+
+    await config.waitForInitialization();
+
+    expect(() => config.stringifyField("number", Number.NaN)).toThrow("Invalid number field value");
+    expect(() => config.stringifyField("number", Number.POSITIVE_INFINITY)).toThrow(
+      "Invalid number field value",
+    );
+    expect(() => config.stringifyField("number", "")).toThrow("Invalid number field value");
+    expect(() => config.stringifyField("number", "not-a-number")).toThrow(
+      "Invalid number field value",
+    );
+    expect(() => config.parseField("number", "not-a-number")).toThrow("Invalid number field value");
+
+    expect(() => config.stringifyField("boolean", "yes")).toThrow("Invalid boolean field value");
+    expect(() => config.stringifyField("boolean", 2)).toThrow("Invalid boolean field value");
+    expect(() => config.parseField("boolean", "yes")).toThrow("Invalid boolean field value");
   });
 
   // ============================================

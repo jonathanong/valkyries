@@ -6,6 +6,15 @@ import assert from "node:assert";
 import type { GlideClient } from "@valkey/valkey-glide";
 
 describe("rate-limiter.generated", () => {
+  it("RateLimiter validates prefix and ttl", () => {
+    expect(() => new RateLimiter({ prefix: "", ttlSeconds: 10 })).toThrow(
+      "RateLimiter requires a prefix",
+    );
+    expect(() => new RateLimiter({ prefix: "test", ttlSeconds: 0 })).toThrow(
+      "RateLimiter: ttlSeconds must be greater than 0",
+    );
+  });
+
   it("RateLimiter", async () => {
     const rateLimiter = new RateLimiter({
       prefix: `test${Math.random().toString(36).slice(2)}`,
