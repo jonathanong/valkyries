@@ -109,6 +109,7 @@ Call `closeValkeyClients()` to close package-managed clients.
 ## Documentation
 
 - [Configuration](docs/configuration.md)
+- [API reference](docs/api.md)
 - [Clients](docs/clients.md)
 - [Cache](docs/cache.md)
 - [Bloom filters](docs/bloom-filters.md)
@@ -116,5 +117,6 @@ Call `closeValkeyClients()` to close package-managed clients.
 - [Rate limiter](docs/rate-limiter.md)
 - [Events and metrics](docs/events-and-metrics.md)
 - [Lua scripts](docs/lua-scripts.md)
+- [Utilities](docs/utilities.md)
 - [Testing and CI](docs/testing-and-ci.md)
 - [Migration guide](docs/migration.md)

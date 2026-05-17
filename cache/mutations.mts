@@ -72,12 +72,13 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
       writtenKeys.push(entry.serializedKey);
     }
     if (writtenKeys.length === 0) return;
-    this.client
-      .exec(batch, false)
-      .then(() => {
-        emitValkeyEvent("cache:set", { cacheName: this.prefix, keys: writtenKeys });
-      })
-      .catch(handleValkeyError);
+    try {
+      await this.client.exec(batch, false);
+    } catch (cause) {
+      handleValkeyError(cause);
+      throw cause;
+    }
+    emitValkeyEvent("cache:set", { cacheName: this.prefix, keys: writtenKeys });
   }
 
   protected async setBySerializedKey(

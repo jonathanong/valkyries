@@ -21,6 +21,8 @@ export class RateLimiter {
   private client: GlideClient;
 
   constructor({ prefix, ttlSeconds, client = rateLimiterValkeyClient }: RateLimiterOptions) {
+    if (!prefix) throw new Error("RateLimiter requires a prefix");
+    if (!(ttlSeconds > 0)) throw new Error("RateLimiter: ttlSeconds must be greater than 0");
     this.prefix = prefix;
     this.ttl = ttlSeconds;
     this.client = client;

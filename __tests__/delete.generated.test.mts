@@ -1,6 +1,7 @@
 import { deleteKeysWithPrefix } from "../delete.mts";
 import { cacheValkeyClient } from "../clients.mts";
-import { it, expect, describe } from "vitest";
+import { it, expect, describe, vi } from "vitest";
+import type { GlideClient } from "@valkey/valkey-glide";
 
 describe("delete.generated", () => {
   it("deleteKeysWithPrefix", async () => {
@@ -70,4 +71,28 @@ describe("delete.generated", () => {
     const values = await Promise.all(keys.map((k) => cacheValkeyClient.get(k)));
     expect(values.every((v) => v === null)).toBe(true);
   }, 15_000);
+
+  it("deleteKeysWithPrefix awaits each unlink before scanning the next page", async () => {
+    let firstUnlinkResolved = false;
+    const scan = vi
+      .fn()
+      .mockResolvedValueOnce(["1", ["prefix:a"]])
+      .mockImplementationOnce(() => {
+        expect(firstUnlinkResolved).toBe(true);
+        return Promise.resolve(["0", ["prefix:b"]]);
+      });
+    const unlink = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        firstUnlinkResolved = true;
+        return 1;
+      })
+      .mockResolvedValueOnce(1);
+    const client = { scan, unlink } as unknown as GlideClient;
+
+    await deleteKeysWithPrefix(client, "prefix:*");
+
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(unlink).toHaveBeenCalledTimes(2);
+  });
 });
