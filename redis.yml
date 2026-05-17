@@ -1,0 +1,12 @@
+base: lua51
+
+globals:
+  ARGV:
+    any: true
+  KEYS:
+    any: true
+  redis.call:
+    args:
+      - type: string
+      - type: "..."
+        required: false
