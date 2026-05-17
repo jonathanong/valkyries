@@ -50,6 +50,7 @@ describe("lua scripts", () => {
       expect(result).toEqual([1, 0]);
       expect(await cacheValkeyClient.get(cacheKeys[0]!)).toEqual("value-a");
       expect(await cacheValkeyClient.get(cacheKeys[1]!)).toBeNull();
+      await expectPositiveTtlSeconds(cacheKeys[0]!, 30);
     } finally {
       await unlink(cacheKeys, invalidationKeys);
     }
@@ -76,6 +77,8 @@ describe("lua scripts", () => {
       expect(await cacheValkeyClient.get(cacheKeys[1]!)).toBeNull();
       expect(await cacheValkeyClient.get(invalidationKeys[0]!)).toEqual("1");
       expect(await cacheValkeyClient.get(invalidationKeys[1]!)).toEqual("1");
+      await expectPositiveTtlSeconds(invalidationKeys[0]!, 30);
+      await expectPositiveTtlSeconds(invalidationKeys[1]!, 30);
     } finally {
       await unlink(cacheKeys, invalidationKeys);
     }
@@ -105,10 +108,17 @@ describe("lua scripts", () => {
         args: [bloomKey],
       });
 
-      expect(Array.isArray(hit)).toBe(true);
-      expect(hit).toEqual(["hit-value", expect.any(Number), 0]);
+      const hitResult = expectArrayResult(hit);
+      expect(hitResult).toHaveLength(3);
+      expect(hitResult[0]).toEqual("hit-value");
+      expectPositiveTtlMilliseconds(hitResult[1], 30_000);
+      expect(hitResult[2]).toBe(0);
       expect(miss).toEqual([null, -2, 1]);
-      expect(batch).toEqual(["hit-value", expect.any(Number), 0, null, -2, 1]);
+      const batchResult = expectArrayResult(batch);
+      expect(batchResult).toHaveLength(6);
+      expect(batchResult[0]).toEqual("hit-value");
+      expectPositiveTtlMilliseconds(batchResult[1], 30_000);
+      expect(batchResult.slice(2)).toEqual([0, null, -2, 1]);
     } finally {
       await unlink([hitKey, missKey, bloomKey]);
     }
@@ -254,4 +264,22 @@ function toFieldMap(fields: unknown): Map<string, string> {
     }
   }
   return fieldMap;
+}
+
+async function expectPositiveTtlSeconds(key: string, maxSeconds: number): Promise<void> {
+  const ttl = Number(await cacheValkeyClient.ttl(key));
+  expect(ttl).toBeGreaterThan(0);
+  expect(ttl).toBeLessThanOrEqual(maxSeconds);
+}
+
+function expectPositiveTtlMilliseconds(value: unknown, maxMilliseconds: number): void {
+  const ttl = Number(value);
+  expect(ttl).toBeGreaterThan(0);
+  expect(ttl).toBeLessThanOrEqual(maxMilliseconds);
+}
+
+function expectArrayResult(value: unknown): unknown[] {
+  expect(Array.isArray(value)).toBe(true);
+  if (!Array.isArray(value)) throw new Error("expected script result to be an array");
+  return value;
 }

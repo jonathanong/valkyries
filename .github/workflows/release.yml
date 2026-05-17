@@ -64,6 +64,16 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - name: Install Selene
+        run: |
+          SELENE_VERSION=0.30.1
+          SELENE_SHA256=c8c0f2102cb37e5e3ee2c984b51946b8ea8cf7804b5ea067afdb42fd2b95ff6e
+          curl --fail --location --output "$RUNNER_TEMP/selene.zip" \
+            "https://github.com/Kampfkarren/selene/releases/download/${SELENE_VERSION}/selene-${SELENE_VERSION}-linux.zip"
+          echo "${SELENE_SHA256}  $RUNNER_TEMP/selene.zip" | sha256sum --check -
+          unzip "$RUNNER_TEMP/selene.zip" -d "$RUNNER_TEMP/selene"
+          chmod +x "$RUNNER_TEMP/selene/selene"
+          echo "$RUNNER_TEMP/selene" >> "$GITHUB_PATH"
       - run: pnpm run typecheck
       - run: pnpm run build
       - run: pnpm run lint
