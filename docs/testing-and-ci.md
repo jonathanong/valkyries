@@ -2,6 +2,9 @@
 
 Tests use Vitest and require a Valkey instance with Bloom support.
 
+Lua scripts in `scripts/` are linted with Selene 0.30.1. Install that version locally and make
+sure `selene` is available on `PATH` before running `pnpm run lint`.
+
 Local example:
 
 ```sh
@@ -17,5 +20,6 @@ Validation commands:
 pnpm run typecheck
 pnpm run build
 pnpm run lint
+pnpm run lint:lua
 pnpm run test:coverage
 ```
