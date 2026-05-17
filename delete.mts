@@ -2,7 +2,6 @@ import { handleValkeyError } from "./errors.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 
 export const deleteKeysWithPrefix = async (client: GlideClient, pattern: string): Promise<void> => {
-  const deletionPromises: Promise<number | void>[] = [];
   let cursor = "0";
 
   do {
@@ -14,13 +13,11 @@ export const deleteKeysWithPrefix = async (client: GlideClient, pattern: string)
       const keys = result[1] as string[];
 
       if (keys.length > 0) {
-        deletionPromises.push(client.unlink(keys).catch(handleValkeyError));
+        await client.unlink(keys);
       }
     } catch (err) {
-      handleValkeyError(err as Error);
+      handleValkeyError(err);
       throw err;
     }
   } while (cursor !== "0");
-
-  await Promise.all(deletionPromises);
 };
