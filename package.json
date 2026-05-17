@@ -1,0 +1,80 @@
+{
+  "name": "valkyries",
+  "version": "0.1.0",
+  "description": "Valkey utilities for caches, bloom filters, dynamic configuration, and rate limiting.",
+  "license": "MIT",
+  "author": "",
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./cache": {
+      "types": "./dist/cache.d.mts",
+      "import": "./dist/cache.mjs",
+      "default": "./dist/cache.mjs"
+    },
+    "./bloom-filter": {
+      "types": "./dist/bloom-filter.d.mts",
+      "import": "./dist/bloom-filter.mjs",
+      "default": "./dist/bloom-filter.mjs"
+    },
+    "./dynamic-config": {
+      "types": "./dist/dynamic-config.d.mts",
+      "import": "./dist/dynamic-config.mjs",
+      "default": "./dist/dynamic-config.mjs"
+    },
+    "./rate-limiter": {
+      "types": "./dist/rate-limiter.d.mts",
+      "import": "./dist/rate-limiter.mjs",
+      "default": "./dist/rate-limiter.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json && pnpm run copy:scripts",
+    "copy:scripts": "tsx build-scripts/copy-lua-scripts.mts",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "pnpm run oxlint && pnpm run oxfmt:check",
+    "oxlint": "oxlint --type-aware --deny-warnings",
+    "oxlint:fix": "oxlint --type-aware --fix --deny-warnings",
+    "oxfmt": "oxfmt",
+    "oxfmt:check": "oxfmt --check",
+    "actionlint": "actionlint"
+  },
+  "dependencies": {
+    "@valkey/valkey-glide": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "actionlint": "^2.0.6",
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0",
+    "oxlint-tsgolint": "^0.22.1",
+    "tsx": "^4.22.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "protobufjs"
+    ]
+  }
+}

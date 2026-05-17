@@ -1,0 +1,91 @@
+import { dynamicConfigValkeyClient } from "../clients.mts";
+import { loadScript, registerScript } from "../scripts.mts";
+import type { DynamicConfigField, DynamicConfigFieldType } from "../types.mts";
+import type { GlideClient } from "@valkey/valkey-glide";
+import { parseField, stringifyField } from "./fields.mts";
+
+export const dynamicConfigSetFieldsScript = registerScript(
+  loadScript("dynamic-config-set-fields.lua", new URL("../", import.meta.url)),
+);
+
+export async function getDynamicConfigFieldsMap(
+  key: string,
+  client: GlideClient = dynamicConfigValkeyClient,
+): Promise<Map<string, { field: unknown; value: unknown }>> {
+  const fields = await client.hgetall(key);
+  const fieldsMap = new Map<string, { field: unknown; value: unknown }>();
+  if (Array.isArray(fields)) {
+    for (const entry of fields) {
+      if (entry && typeof entry === "object" && "field" in entry && "value" in entry) {
+        fieldsMap.set(entry.field.toString(), entry);
+      }
+    }
+  }
+  return fieldsMap;
+}
+
+export function applyFieldsFromMap({
+  fields,
+  fieldsMap,
+  fieldTypes,
+  defaultFields,
+}: {
+  fields: Map<string, DynamicConfigField>;
+  fieldsMap: Map<string, { field: unknown; value: unknown }>;
+  fieldTypes: Record<string, DynamicConfigFieldType>;
+  defaultFields: Record<string, DynamicConfigField>;
+}) {
+  for (const [name, type] of Object.entries(fieldTypes)) {
+    const valkeyEntry = fieldsMap.get(name);
+    const value =
+      valkeyEntry?.value != null
+        ? parseField(type, stringifyValkeyField(valkeyEntry.value))
+        : defaultFields[name];
+    fields.set(name, value);
+  }
+}
+
+export async function writeDynamicConfigFields({
+  key,
+  args,
+  client = dynamicConfigValkeyClient,
+}: {
+  key: string;
+  args: string[];
+  client?: GlideClient;
+}) {
+  if (args.length === 0) return;
+  await client.invokeScript(dynamicConfigSetFieldsScript, { keys: [key], args });
+}
+
+export function buildMissingDefaultWrites({
+  fieldsMap,
+  fieldTypes,
+  defaultFields,
+}: {
+  fieldsMap: Map<string, { field: unknown; value: unknown }>;
+  fieldTypes: Record<string, DynamicConfigFieldType>;
+  defaultFields: Record<string, DynamicConfigField>;
+}) {
+  const toApply: [string, DynamicConfigField][] = [];
+  const writeArgs: string[] = [];
+  for (const [name, type] of Object.entries(fieldTypes)) {
+    const valkeyEntry = fieldsMap.get(name);
+    const value =
+      valkeyEntry?.value != null
+        ? parseField(type, stringifyValkeyField(valkeyEntry.value))
+        : defaultFields[name];
+    if (valkeyEntry?.value == null) writeArgs.push(name, stringifyField(type, value));
+    toApply.push([name, value]);
+  }
+  return { toApply, writeArgs };
+}
+
+function stringifyValkeyField(value: unknown): string {
+  if (Buffer.isBuffer(value)) return value.toString();
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value) ?? "";
+}

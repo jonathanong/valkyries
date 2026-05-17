@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "include": ["*.mts", "cache/**/*.mts", "bloom-filter/**/*.mts", "dynamic-config/**/*.mts"],
+  "exclude": ["**/__tests__/**", "vitest.config.mts", "node_modules", "dist", "coverage"]
+}
