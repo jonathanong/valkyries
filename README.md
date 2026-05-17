@@ -117,4 +117,4 @@ Call `closeValkeyClients()` to close package-managed clients.
 - [Events and metrics](docs/events-and-metrics.md)
 - [Lua scripts](docs/lua-scripts.md)
 - [Testing and CI](docs/testing-and-ci.md)
-- [Migration from Filaments](docs/migration-from-filaments.md)
+- [Migration guide](docs/migration.md)
