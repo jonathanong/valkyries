@@ -28,14 +28,20 @@ export async function rebuildFromStream(
   });
   try {
     for await (const batch of batches) {
-      let previous = Promise.resolve();
+      // ⚡ Bolt Optimization:
+      // What: Replaced sequential Promise chain with Promise.all()
+      // Why: BF.MADD commands are commutative, so chunks can be sent to Valkey concurrently instead of waiting for the previous chunk to finish.
+      // Impact: Significantly reduces network latency for large batches (from O(n) to O(1) round trips per batch)
+      const promises: Promise<void>[] = [];
       for (const chunk of chunkItems(batch, state.batchSize)) {
-        previous = previous.then(async () => {
-          await state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]);
-          emitValkeyEvent("bloom-filter:add", { name: state.name, items: chunk });
-        });
+        promises.push(
+          (async () => {
+            await state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]);
+            emitValkeyEvent("bloom-filter:add", { name: state.name, items: chunk });
+          })(),
+        );
       }
-      await previous;
+      await Promise.all(promises);
     }
     await state.client.rename(state.buildingKey, state.liveKey);
   } catch (error) {
