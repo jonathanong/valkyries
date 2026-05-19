@@ -2,6 +2,7 @@ import { rateLimiterValkeyClient } from "./clients.mts";
 import { loadScript, registerScript } from "./scripts.mts";
 import type { RateLimiterOptions } from "./types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
+import { randomUUID } from "node:crypto";
 import { deleteKeysWithPrefix } from "./delete.mts";
 import { emitValkeyEvent } from "./events.mts";
 import { normalizeCountResult } from "./utils.mts";
@@ -33,7 +34,8 @@ export class RateLimiter {
     if (filteredIds.length === 0) return;
     const keys = filteredIds.map((id) => this.getKey(id));
     // Single script call for all keys (server time is used in script)
-    const args = [this.ttl.toString(), ...keys.map(() => Math.random().toString())];
+    // Use CSPRNG to prevent predictability and collisions
+    const args = [this.ttl.toString(), ...keys.map(() => randomUUID())];
     await this.client.invokeScript(rateLimiterAddScript, { keys, args });
     emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
   }
@@ -58,7 +60,8 @@ export class RateLimiter {
     const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return { counts: [], limited: false };
     const keys = filteredIds.map((id) => this.getKey(id));
-    const args = [ttlSeconds.toString(), ...keys.map(() => Math.random().toString())];
+    // Use CSPRNG to prevent predictability and collisions
+    const args = [ttlSeconds.toString(), ...keys.map(() => randomUUID())];
     const results = await this.client.invokeScript(rateLimiterAddAndCheckScript, {
       keys,
       args,
