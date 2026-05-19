@@ -33,8 +33,8 @@ export async function addStream(
     // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
     // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
     const chunks = Array.from(chunkItems(batch, luaBatchSize(state.batchSize)));
-    const results: unknown[] = new Array(chunks.length);
-    let firstError: unknown | undefined;
+    const results: unknown[] = Array.from({ length: chunks.length });
+    let firstError: any;
 
     // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
     // We must also wait for all in-flight commands in a concurrent set to settle before

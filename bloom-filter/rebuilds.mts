@@ -33,8 +33,8 @@ export async function rebuildFromStream(
       // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
       // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
       const chunks = Array.from(chunkItems(batch, state.batchSize));
-      const results: boolean[] = new Array(chunks.length).fill(false);
-      let firstError: unknown | undefined;
+      const results: boolean[] = Array.from({ length: chunks.length }, () => false);
+      let firstError: any;
 
       // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
       // We must also wait for all in-flight commands in a concurrent set to settle before
