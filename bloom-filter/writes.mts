@@ -29,24 +29,51 @@ export async function addStream(
 ): Promise<void> {
   for await (const batch of batches) {
     // ⚡ Bolt Optimization:
-    // What: Replaced sequential Promise chain with Promise.all()
-    // Why: BF.MADD commands are commutative, so chunks can be sent to Valkey concurrently instead of waiting for the previous chunk to finish.
-    // Impact: Significantly reduces network latency for large batches (from O(n) to O(1) round trips per batch)
-    const promises: Promise<void>[] = [];
-    for (const chunk of chunkItems(batch, luaBatchSize(state.batchSize))) {
-      promises.push(
-        (async () => {
-          const result = await state.client.invokeScript(bloomFilterAddScript, {
+    // What: Concurrent BF.MADD chunk processing
+    // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
+    // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
+    const chunks = Array.from(chunkItems(batch, luaBatchSize(state.batchSize)));
+    const results: unknown[] = new Array(chunks.length);
+    let firstError: unknown | undefined;
+
+    // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
+    // We must also wait for all in-flight commands in a concurrent set to settle before
+    // potentially throwing, ensuring no "late" writes happen after the method returns.
+    const concurrencyLimit = 16;
+    for (let i = 0; i < chunks.length; i += concurrencyLimit) {
+      const slice = chunks.slice(i, i + concurrencyLimit);
+      const settled = await Promise.allSettled(
+        slice.map((chunk) =>
+          state.client.invokeScript(bloomFilterAddScript, {
             keys: [state.liveKey, state.buildingKey],
             args: chunk,
-          });
-          if (wroteFilter(result)) {
-            emitValkeyEvent("bloom-filter:add", { name: state.name, items: chunk });
-          }
-        })(),
+          }),
+        ),
       );
+
+      for (let j = 0; j < settled.length; j++) {
+        const res = settled[j];
+        if (res.status === "fulfilled") {
+          results[i + j] = res.value;
+        } else if (firstError === undefined) {
+          firstError = res.reason;
+        }
+      }
+
+      // Emit events for this concurrent slice in order before moving to the next slice
+      // or throwing an error, maintaining sequential event ordering for consumers.
+      for (let j = 0; j < settled.length; j++) {
+        if (wroteFilter(results[i + j])) {
+          emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
+        }
+      }
+
+      if (firstError !== undefined) break;
     }
-    await Promise.all(promises);
+
+    if (firstError !== undefined) {
+      throw firstError;
+    }
   }
 }
 
