@@ -34,8 +34,7 @@ export class RateLimiter {
     if (filteredIds.length === 0) return;
     const keys = filteredIds.map((id) => this.getKey(id));
     // Single script call for all keys (server time is used in script)
-    // 🛡️ Security enhancement: Using a CSPRNG for random elements instead of Math.random()
-    // Math.random() is predictable and can lead to token collisions or predictability attacks in security contexts
+    // Use CSPRNG to prevent predictability and collisions
     const args = [this.ttl.toString(), ...keys.map(() => randomUUID())];
     await this.client.invokeScript(rateLimiterAddScript, { keys, args });
     emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
@@ -61,8 +60,7 @@ export class RateLimiter {
     const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return { counts: [], limited: false };
     const keys = filteredIds.map((id) => this.getKey(id));
-    // 🛡️ Security enhancement: Using a CSPRNG for random elements instead of Math.random()
-    // Math.random() is predictable and can lead to token collisions or predictability attacks in security contexts
+    // Use CSPRNG to prevent predictability and collisions
     const args = [ttlSeconds.toString(), ...keys.map(() => randomUUID())];
     const results = await this.client.invokeScript(rateLimiterAddAndCheckScript, {
       keys,
