@@ -43,7 +43,9 @@ export async function rebuildFromStream(
       for (let i = 0; i < chunks.length; i += concurrencyLimit) {
         const slice = chunks.slice(i, i + concurrencyLimit);
         const settled = await Promise.allSettled(
-          slice.map((chunk) => state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk])),
+          slice.map((chunk) =>
+            state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]),
+          ),
         );
 
         for (let j = 0; j < settled.length; j++) {
