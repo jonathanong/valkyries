@@ -17,34 +17,31 @@ describe("rebuildFromStream failure handling", () => {
       client: mockClient,
     });
 
-    let activeMadds = 0;
-    let maxConcurrentMadds = 0;
-    const maddFinishedTimes: number[] = [];
+    const sequence: string[] = [];
+    let resolveSlowMadd: (value: unknown) => void;
+    const slowMaddPromise = new Promise((resolve) => {
+      resolveSlowMadd = resolve;
+    });
 
     mockClient.customCommand.mockImplementation(async (args: string[]) => {
       const cmd = args[0];
       if (cmd === "BF.MADD") {
-        activeMadds++;
-        maxConcurrentMadds = Math.max(maxConcurrentMadds, activeMadds);
-
         const item = args[2];
         if (item === "fail") {
-          activeMadds--;
+          sequence.push("madd-fail");
           throw new Error("Simulated Valkey failure");
         }
 
-        // Simulating network delay for other chunks
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        activeMadds--;
-        maddFinishedTimes.push(Date.now());
+        // Simulating a successful but slow chunk that finishes after the failure
+        await slowMaddPromise;
+        sequence.push("madd-success-slow");
         return [1];
       }
       return 1;
     });
 
-    let unlinkTime = 0;
     mockClient.unlink.mockImplementation(async () => {
-      unlinkTime = Date.now();
+      sequence.push("unlink");
       return 1;
     });
 
@@ -52,7 +49,6 @@ describe("rebuildFromStream failure handling", () => {
       // 10 items, batchSize 5 -> 2 chunks of 5.
       // Chunk 1: [fail, 2, 3, 4, 5]
       // Chunk 2: [6, 7, 8, 9, 10]
-      // Since concurrencyLimit is 16, both chunks will be dispatched together.
       yield [
         "fail",
         "item2",
@@ -67,16 +63,22 @@ describe("rebuildFromStream failure handling", () => {
       ];
     }
 
-    await expect(filter.rebuildFromStream(batches())).rejects.toThrow("Simulated Valkey failure");
+    const rebuildPromise = filter.rebuildFromStream(batches());
 
-    // Verify both chunks were dispatched
-    expect(mockClient.customCommand).toHaveBeenCalledTimes(2);
-    // (Plus any other calls like EXISTS if they were there, but here just BF.MADD)
+    // Give it a moment to dispatch the commands
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // Verify unlink happened AFTER the successful (but slow) chunk finished
-    expect(unlinkTime).toBeGreaterThan(0);
-    for (const finishTime of maddFinishedTimes) {
-      expect(unlinkTime).toBeGreaterThanOrEqual(finishTime);
-    }
+    // Verify that the failure happened but unlink is waiting
+    expect(sequence).toContain("madd-fail");
+    expect(sequence).not.toContain("madd-success-slow");
+    expect(sequence).not.toContain("unlink");
+
+    // Resolve the slow chunk
+    resolveSlowMadd!([1]);
+
+    await expect(rebuildPromise).rejects.toThrow("Simulated Valkey failure");
+
+    // Verify that everything finished in the correct order
+    expect(sequence).toEqual(["madd-fail", "madd-success-slow", "unlink"]);
   });
 });

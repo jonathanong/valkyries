@@ -1,6 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
-import { chunkItems } from "./batching.mts";
+import { chunkItems, DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT } from "./batching.mts";
 import { bloomFilterEnsureExistsScript, bloomFilterReserveScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
 
@@ -39,7 +39,7 @@ export async function rebuildFromStream(
       // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
       // We must also wait for all in-flight commands in a concurrent set to settle before
       // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
-      const concurrencyLimit = 16;
+      const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
       for (let i = 0; i < chunks.length; i += concurrencyLimit) {
         const slice = chunks.slice(i, i + concurrencyLimit);
         const settled = await Promise.allSettled(

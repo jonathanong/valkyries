@@ -1,5 +1,7 @@
 import { LUA_UNPACK_BATCH_SIZE } from "./scripts.mts";
 
+export const DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT = 16;
+
 export function luaBatchSize(batchSize: number): number {
   return Math.min(batchSize, LUA_UNPACK_BATCH_SIZE);
 }

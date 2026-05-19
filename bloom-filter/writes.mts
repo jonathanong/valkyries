@@ -1,6 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
-import { chunkItems, luaBatchSize } from "./batching.mts";
+import { chunkItems, DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT, luaBatchSize } from "./batching.mts";
 import { bloomFilterAddScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
 
@@ -39,7 +39,7 @@ export async function addStream(
     // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
     // We must also wait for all in-flight commands in a concurrent set to settle before
     // potentially throwing, ensuring no "late" writes happen after the method returns.
-    const concurrencyLimit = 16;
+    const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
     for (let i = 0; i < chunks.length; i += concurrencyLimit) {
       const slice = chunks.slice(i, i + concurrencyLimit);
       const settled = await Promise.allSettled(
