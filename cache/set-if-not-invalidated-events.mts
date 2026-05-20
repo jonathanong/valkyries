@@ -5,27 +5,34 @@ export function emitSetIfNotInvalidatedEvents(
   entries: Array<{ serializedKey: string }>,
   results: unknown,
 ) {
-  let writtenKeys: string[];
-  let skippedKeys: string[] = [];
+  const writtenKeys: string[] = [];
+  const skippedKeys: string[] = [];
 
   // ⚡ Bolt Optimization:
-  // What: Replace multiple array.flatMap calls with a single indexed for loop
-  // Why: flatMap creates many intermediate arrays. A single pass loop reduces allocations and iterates the array once instead of twice.
+  // What: Replace array.flatMap with a single indexed for loop
+  // Why: flatMap creates intermediate arrays and has higher V8 overhead.
+  // Impact: Reduces GC pressure and improves throughput for batch operations.
   if (Array.isArray(results)) {
-    writtenKeys = [];
     const isCompleteResult = results.length === entries.length;
     for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry == null) continue;
       const result = results[i];
+      if (result == null) continue;
       if (result === 1 || result === 1n) {
-        writtenKeys.push(entries[i].serializedKey);
+        writtenKeys.push(entry.serializedKey);
       } else if (isCompleteResult && (result === 0 || result === 0n)) {
-        skippedKeys.push(entries[i].serializedKey);
+        skippedKeys.push(entry.serializedKey);
       }
     }
   } else {
-    writtenKeys = entries.map((entry) => entry.serializedKey);
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry != null) {
+        writtenKeys.push(entry.serializedKey);
+      }
+    }
   }
-
   if (writtenKeys.length > 0)
     emitValkeyEvent("cache:set", { cacheName: prefix, keys: writtenKeys });
   if (skippedKeys.length > 0) {
