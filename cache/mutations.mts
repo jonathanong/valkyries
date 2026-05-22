@@ -29,7 +29,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
         });
       }
       this.client
-        .exec(batch, false)
+        .exec(batch, true)
         .then(() => {
           emitValkeyEvent("cache:set", { cacheName: this.prefix, keys: aliasState.serializedKeys });
         })
@@ -75,7 +75,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     }
     if (writtenKeys.length === 0) return;
     try {
-      await this.client.exec(batch, false);
+      await this.client.exec(batch, true);
     } catch (cause) {
       handleValkeyError(cause);
       throw cause;
