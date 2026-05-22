@@ -8,6 +8,7 @@
 **Action:** When performing commutative batch insertions to Valkey (like Bloom filter adds), replace sequential promise chains with concurrent processing (using `Promise.all` or bounded concurrency) to pipeline commands and reduce wall-clock latency via pipelining/overlap. Ensure all in-flight operations settle before cleaning up or returning to avoid race conditions and preserve deterministic outcomes.
 
 ## 2026-05-22 - Array.from Generator Iteration Speed in V8
+
 **Learning:** Using `Array.from` with a generator and mapping function is not strictly faster than a traditional `for...of` loop with `.push()` in the current Node.js/V8 environment. Benchmarking showed the traditional loop to be faster for simple generator iteration.
 **Action:** When optimizing loop constructs, always write a targeted benchmark to verify performance assumptions in the target environment, as engine optimizations evolve and syntactic sugar (like `Array.from`) does not automatically equate to better performance for all input types (like generators vs arrays).
 
