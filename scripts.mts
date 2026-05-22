@@ -8,9 +8,9 @@ function registerReleaseHook() {
   if (releaseHookRegistered) return;
   releaseHookRegistered = true;
   process.once("exit", () => {
-    for (const script of scriptRegistry) {
+    for (let i = 0; i < scriptRegistry.length; i++) {
       try {
-        script.release();
+        scriptRegistry[i].release();
       } catch (err) {
         // oxlint-disable-next-line no-console -- synchronous; onError queues async Sentry I/O which won't flush in an exit handler
         console.error(err);
