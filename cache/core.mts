@@ -1,7 +1,7 @@
 import type { ValkeyCacheMode, ValkeyCacheOptions } from "../types.mts";
 import { cacheValkeyClient } from "../clients.mts";
 import { emitValkeyEvent } from "../events.mts";
-import { Decoder, type GlideClient, type GlideString } from "@valkey/valkey-glide";
+import { Decoder, type GlideString } from "@valkey/valkey-glide";
 import { normalizeKey } from "../key-normalization.mts";
 import { handleValkeyError } from "../errors.mts";
 import { normalizeTtlResult } from "../utils.mts";
@@ -25,7 +25,7 @@ export abstract class ValkeyCacheCore<K = string> {
   protected bloomFilterEnabled?: () => boolean;
   protected refreshPromises: Map<string, Promise<void>>;
   protected keySerializer: (key: K) => string;
-  protected client: GlideClient;
+  protected client: typeof cacheValkeyClient;
 
   constructor({
     prefix,
