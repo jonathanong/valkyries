@@ -1,4 +1,5 @@
 ## 2026-05-22 - Prevent Event Loop Blocking in Dynamic Config Parsing
+
 **Learning:** Parsing extremely large configuration maps synchronously blocks the Node.js event loop, preventing the processing of other I/O events for significant periods of time (e.g., ~400ms for 200,000 fields).
 **Action:** When iterating over large data structures to apply configuration or state, use `setImmediate` periodically (e.g., every 1000 items) to explicitly yield to the event loop.
 
