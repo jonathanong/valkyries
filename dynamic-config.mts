@@ -67,6 +67,9 @@ export class DynamicConfig {
       defaultFields: this.defaultFields,
     });
     await writeDynamicConfigFields({ key: this.key, args: writeArgs, client: this.client });
+
+    // Keep identity stable for callers that captured `fields` by reference.
+    this.fields.clear();
     for (const [name, value] of toApply) {
       this.fields.set(name, value);
     }
