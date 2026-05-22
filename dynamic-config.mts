@@ -169,11 +169,8 @@ export class DynamicConfig {
   }
 
   getFields(): Record<string, DynamicConfigField> {
-    const result: Record<string, DynamicConfigField> = {};
-    for (const [name, value] of this.fields.entries()) {
-      result[name] = value;
-    }
-    return result;
+    // ⚡ Bolt: Optimize map to object conversion using native Object.fromEntries
+    return Object.fromEntries(this.fields);
   }
 
   // set the fields in valkey and publish change events atomically via Lua script,
