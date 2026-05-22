@@ -2,6 +2,7 @@ import { deleteKeysWithPrefix } from "../delete.mts";
 import { cacheValkeyClient } from "../clients.mts";
 import { it, expect, describe, vi } from "vitest";
 import type { GlideClient } from "@valkey/valkey-glide";
+import * as errors from "../errors.mts";
 
 describe("delete.generated", () => {
   it("deleteKeysWithPrefix", async () => {
@@ -94,5 +95,18 @@ describe("delete.generated", () => {
 
     expect(scan).toHaveBeenCalledTimes(2);
     expect(unlink).toHaveBeenCalledTimes(2);
+  });
+
+  it("deleteKeysWithPrefix handles Valkey errors", async () => {
+    const error = new Error("test error");
+    const scan = vi.fn().mockRejectedValueOnce(error);
+    const client = { scan } as unknown as GlideClient;
+
+    const spy = vi.spyOn(errors, "handleValkeyError").mockImplementation(() => {});
+
+    await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("test error");
+    expect(spy).toHaveBeenCalledWith(error);
+
+    spy.mockRestore();
   });
 });
