@@ -184,7 +184,7 @@ export class DynamicConfig {
 
     // Use for-in to iterate over fields without allocating an array of entries
     for (const name in fields) {
-      if (!Object.prototype.hasOwnProperty.call(fields, name)) continue;
+      if (!Object.hasOwn(fields, name)) continue;
 
       if (!this.fieldTypes[name]) {
         throw new Error(`Unknown field: ${name}`);
