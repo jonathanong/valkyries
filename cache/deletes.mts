@@ -12,12 +12,18 @@ import { ValkeyCacheMutations } from "./mutations.mts";
 export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
   async delete(...keys: K[]): Promise<number> {
     const serializedKeys: string[] = [];
-    const keyArray = keys.flatMap((key) => {
+    const keyArray: string[] = [];
+
+    // ⚡ Bolt Optimization:
+    // What: Replace array.flatMap with a for...of loop
+    // Why: flatMap creates many intermediate arrays per iteration which causes garbage collection overhead and is significantly slower.
+    for (const key of keys) {
       const serialized = this.toSerializedKey(key);
-      if (serialized === null) return [];
+      if (serialized === null) continue;
       serializedKeys.push(serialized);
-      return [this.getSerializedCacheKey(serialized)];
-    });
+      keyArray.push(this.getSerializedCacheKey(serialized));
+    }
+
     if (keyArray.length === 0) return 0;
     const invalidationKeys = serializedKeys.map((key) => this.getSerializedInvalidationKey(key));
     const result = await this.client.invokeScript(cacheDeleteWithInvalidationScript, {

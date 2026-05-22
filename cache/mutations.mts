@@ -181,10 +181,17 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   }
 
   private withSerializedKeys(entries: Array<{ key: K; value: unknown; ttl?: number }>) {
-    return entries.flatMap((entry) => {
+    const result: Array<{ key: K; value: unknown; ttl?: number; serializedKey: string }> = [];
+    // ⚡ Bolt Optimization:
+    // What: Replace array.flatMap with a for...of loop
+    // Why: flatMap creates many intermediate arrays per iteration which causes garbage collection overhead and is significantly slower.
+    for (const entry of entries) {
       const serializedKey = this.toSerializedKey(entry.key);
-      return serializedKey !== null ? [{ ...entry, serializedKey }] : [];
-    });
+      if (serializedKey !== null) {
+        result.push({ ...entry, serializedKey });
+      }
+    }
+    return result;
   }
 
   private entryTtl(entry: { value: unknown; ttl?: number }): number {
