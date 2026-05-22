@@ -23,14 +23,7 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         outputIndices,
       } = this.deduplicateKeys(keys);
       if (normalizedKeys.length === 0) {
-        trackCacheCall({
-          cacheName: this.prefix,
-          batch: true,
-          hits: 0,
-          misses: 0,
-          bloomMisses: 0,
-          duration: 0,
-        });
+        this.trackEmptyBatchRead();
         return Array(keys.length).fill(null);
       }
       const scatter = (normalized: Array<T | null>): Array<T | null> =>
@@ -69,14 +62,7 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
   async getBatch(keys: K[]): Promise<Array<string | Buffer | Record<string, unknown> | null>> {
     const { serializedKeys, outputIndices } = this.deduplicateKeys(keys);
     if (serializedKeys.length === 0) {
-      trackCacheCall({
-        cacheName: this.prefix,
-        batch: true,
-        hits: 0,
-        misses: 0,
-        bloomMisses: 0,
-        duration: 0,
-      });
+      this.trackEmptyBatchRead();
       return Array(keys.length).fill(null);
     }
     const stats = new BatchReadStats();
@@ -103,6 +89,17 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
     } finally {
       this.trackBatchRead(start, stats);
     }
+  }
+
+  private trackEmptyBatchRead() {
+    trackCacheCall({
+      cacheName: this.prefix,
+      batch: true,
+      hits: 0,
+      misses: 0,
+      bloomMisses: 0,
+      duration: 0,
+    });
   }
 
   private trackBatchRead(start: bigint, stats: BatchReadStats) {
