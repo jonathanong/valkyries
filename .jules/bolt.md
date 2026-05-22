@@ -1,3 +1,7 @@
+## 2024-05-22 - Avoid wrapper Promises in hot loops
+**Learning:** Using `Promise.resolve().then(() => obj.close())` inside mapping operations adds microtask overhead and allocates unnecessary intermediate Promise wrappers.
+**Action:** Replace wrapper Promises with a synchronous `try/catch` wrapper (like `safeClose`) that synchronously executes the function and only returns `Promise.reject(error)` upon synchronous exception. This reduces execution time significantly in hot loops or during massive bulk operations (e.g., shutting down 100k clients).
+
 ## 2024-05-18 - Concurrent chunk processing for Valkey
 
 **Learning:** Sending operations (like BF.MADD) on arrays sequentially using `previous = previous.then()` within batched streams forces O(N) network round-trips to the Redis/Valkey cache server, degrading performance when loading streams.
