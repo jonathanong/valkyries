@@ -78,16 +78,13 @@ export async function addStream(
 }
 
 function addCommands(state: BloomFilterState, items: string[]): Promise<unknown>[] {
-  const cmds: Promise<unknown>[] = [];
-  for (const chunk of chunkItems(items, luaBatchSize(state.batchSize))) {
-    cmds.push(
-      state.client.invokeScript(bloomFilterAddScript, {
-        keys: [state.liveKey, state.buildingKey],
-        args: chunk,
-      }),
-    );
-  }
-  return cmds;
+  // ⚡ Bolt Optimization: Use Array.from for faster pre-allocation
+  return Array.from(chunkItems(items, luaBatchSize(state.batchSize)), (chunk) =>
+    state.client.invokeScript(bloomFilterAddScript, {
+      keys: [state.liveKey, state.buildingKey],
+      args: chunk,
+    }),
+  );
 }
 
 function wroteFilter(result: unknown): boolean {
