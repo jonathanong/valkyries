@@ -21,3 +21,7 @@
 
 **Learning:** Iterating over object fields using `Object.entries(obj)` allocates an array containing all key-value tuples, which can negatively impact performance and cause GC pressure if called frequently in hot paths.
 **Action:** Use a simple `for...in` loop instead of `Object.entries(obj)` when iterating over simple records or objects to avoid unnecessary allocations, while verifying object properties when needed.
+## 2024-06-25 - Avoid Set spreading for array deduplication
+
+**Learning:** Using `[...new Set(array)]` or `Set.values()` to deduplicate elements forces the use of the iterator protocol, which creates unnecessary overhead, especially for small arrays. For very small arrays (e.g. length <= `REFRESH_ALIAS_DEDUPE_THRESHOLD`, currently 30), a simple `for` loop with `Array.prototype.includes()` is significantly faster because it avoids allocating the `Set` object entirely.
+**Action:** When deduplicating elements in performance-critical code, use a hybrid approach: for small arrays, use a standard `for` loop with `Array.prototype.includes()`. For larger arrays, use a `Set` to track seen elements to maintain O(N) complexity, but manually `.push()` unique elements to a results array to avoid the iterator and spread operator overhead. Also, prefer standard `for (let i = 0; i < len; i++)` loops over `for...of` loops to bypass iterator allocation.

@@ -7,6 +7,8 @@ import { cacheSetIfNotInvalidatedScript } from "./constants.mts";
 import { ValkeyCacheBatchRead } from "./batch-read.mts";
 import { emitSetIfNotInvalidatedEvents } from "./set-if-not-invalidated-events.mts";
 
+const REFRESH_ALIAS_DEDUPE_THRESHOLD = 30;
+
 export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchRead<K> {
   async refreshById<T>(
     aliases: K[],
@@ -161,14 +163,24 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
 
   private collectRefreshAliases(aliases: K[]) {
     let firstValidAlias: K | null = null;
-    const serializedKeySet = new Set<string>();
-    for (const key of aliases) {
+    const serializedKeys: string[] = [];
+    const len = aliases.length;
+    const useSet = len > REFRESH_ALIAS_DEDUPE_THRESHOLD;
+    const seenSet = useSet ? new Set<string>() : null;
+    for (let i = 0; i < len; i++) {
+      const key = aliases[i];
       const serialized = this.toSerializedKey(key);
       if (serialized === null) continue;
-      firstValidAlias ??= key;
-      serializedKeySet.add(serialized);
+      if (firstValidAlias === null) firstValidAlias = key;
+      if (seenSet !== null) {
+        if (seenSet.has(serialized)) continue;
+        seenSet.add(serialized);
+        serializedKeys.push(serialized);
+      } else if (!serializedKeys.includes(serialized)) {
+        serializedKeys.push(serialized);
+      }
     }
-    return { firstValidAlias, serializedKeys: [...serializedKeySet] };
+    return { firstValidAlias, serializedKeys };
   }
 
   private async serializeRefreshResult(value: unknown): Promise<string | Buffer> {
