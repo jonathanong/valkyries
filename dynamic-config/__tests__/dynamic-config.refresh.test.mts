@@ -10,7 +10,7 @@ import { dynamicConfigValkeyClient } from "../../clients.mts";
 describe("dynamic-config.refresh", () => {
   afterEach(closeTestDynamicConfigs);
   afterAll(closeTestDynamicConfigContext);
-  type FieldsMap = Map<string, { field: unknown; value: unknown }>;
+  type FieldsMap = Record<string, { field: unknown; value: unknown }>;
   type PrivateDynamicConfig = {
     getFieldsMap: () => Promise<FieldsMap>;
     handlePubSubMessage: (msg: { channel: string; message: string }) => void;
