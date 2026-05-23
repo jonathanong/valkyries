@@ -25,7 +25,7 @@ describe("RateLimiter Security", () => {
 
     expect(randomUUID).toHaveBeenCalledTimes(1);
     const args = client.invokeScript.mock.calls[0][1].args;
-    expect(args).toContain("mocked-uuid");
+    expect(args).toContain("mocked-uuid-0");
   });
 
   it("add() uses randomUUID() once for multi-key batches", async () => {
@@ -47,7 +47,7 @@ describe("RateLimiter Security", () => {
 
     expect(randomUUID).toHaveBeenCalledTimes(1);
     const args = client.invokeScript.mock.calls[0][1].args;
-    expect(args).toContain("mocked-uuid");
+    expect(args).toContain("mocked-uuid-0");
   });
 
   it("addAndCheck() uses randomUUID() once for multi-key batches", async () => {
