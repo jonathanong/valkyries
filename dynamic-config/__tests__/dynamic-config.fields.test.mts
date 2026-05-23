@@ -44,6 +44,32 @@ describe("dynamic-config.fields", () => {
     expect(fields.enabled).toBe(true);
   });
 
+  it("DynamicConfig.setFields preserves fields map identity", async () => {
+    const config = new DynamicConfig({
+      key: createDynamicConfigTestKey(),
+      staleTtlSeconds: 10,
+      fieldTypes: {
+        name: "string",
+        count: "number",
+      },
+      defaultFields: {
+        name: "default",
+        count: 0,
+      },
+    });
+    const fieldsRef = config.fields;
+
+    await config.waitForInitialization();
+
+    await config.setFields({
+      name: "updated",
+    });
+
+    expect(config.fields).toBe(fieldsRef);
+    expect(config.getFields().name).toBe("updated");
+    expect(config.getFields().count).toBe(0);
+  });
+
   it("DynamicConfig.setField updates single field", async () => {
     const config = new DynamicConfig({
       key: createDynamicConfigTestKey(),
