@@ -261,16 +261,12 @@ describe("cache.stale-ttl", () => {
     await cache.delete(id, slug);
   });
 
-  it("ValkeyCache refreshById is fire-and-forget for the cache write", async () => {
-    // refreshById returns the fetched value without awaiting the Valkey write.
-    // We cannot reliably assert the cache is empty immediately after the call
-    // (local Valkey may respond before the next line runs), so we verify the
-    // return value and that the write eventually lands.
+  it("ValkeyCache refreshById waits for the cache write before returning", async () => {
+    // refreshById now waits for the Valkey write to finish, then returns the source value.
     const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10 });
     const key = `refresh-ff-${Math.random().toString(36).slice(2)}`;
     const result = await cache.refreshById([key], () => Promise.resolve({ data: "value" }));
     expect(result).toEqual({ data: "value" });
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(await cache.get(key)).toEqual({ data: "value" });
     await cache.delete(key);
   });
