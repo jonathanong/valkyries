@@ -10,6 +10,12 @@ import { dynamicConfigValkeyClient } from "../../clients.mts";
 describe("dynamic-config.refresh", () => {
   afterEach(closeTestDynamicConfigs);
   afterAll(closeTestDynamicConfigContext);
+  type FieldsMap = Map<string, { field: unknown; value: unknown }>;
+  type PrivateDynamicConfig = {
+    getFieldsMap: () => Promise<FieldsMap>;
+    handlePubSubMessage: (msg: { channel: string; message: string }) => void;
+    lastRefresh: number;
+  };
 
   // ============================================
   // Refresh Tests
@@ -150,5 +156,78 @@ describe("dynamic-config.refresh", () => {
     // Should use default values for missing fields
     expect(config.getFields().name).toBe("default");
     expect(config.getFields().count).toBe(42);
+  });
+
+  it("DynamicConfig.refresh does not overlap refresh runs", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 1,
+      fieldTypes: {
+        name: "string",
+      },
+      defaultFields: {
+        name: "default",
+      },
+    });
+
+    await config.waitForInitialization();
+
+    const originalGetFieldsMap = (config as unknown as PrivateDynamicConfig).getFieldsMap;
+    let activeCalls = 0;
+    let maxConcurrentCalls = 0;
+    (config as unknown as PrivateDynamicConfig).getFieldsMap = async () => {
+      activeCalls += 1;
+      maxConcurrentCalls = Math.max(maxConcurrentCalls, activeCalls);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      const result = await originalGetFieldsMap.call(config);
+      activeCalls -= 1;
+      return result;
+    };
+
+    (config as unknown as PrivateDynamicConfig).lastRefresh = Date.now() - 2000;
+
+    await Promise.all([config.refresh(), config.refresh(), config.refresh()]);
+
+    expect(maxConcurrentCalls).toBe(1);
+  });
+
+  it("DynamicConfig.refresh skips fields updated by pubsub during refresh", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 1,
+      fieldTypes: {
+        name: "string",
+        count: "number",
+      },
+      defaultFields: {
+        name: "default",
+        count: 1,
+      },
+    });
+
+    await config.waitForInitialization();
+
+    const originalGetFieldsMap = (config as unknown as PrivateDynamicConfig).getFieldsMap;
+    (config as unknown as PrivateDynamicConfig).getFieldsMap = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return originalGetFieldsMap.call(config);
+    };
+
+    (config as unknown as PrivateDynamicConfig).lastRefresh = Date.now() - 2000;
+
+    const refreshPromise = config.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    (config as unknown as PrivateDynamicConfig).handlePubSubMessage({
+      channel: `dynamic-config:${key}:name`,
+      message: "from-pubsub",
+    });
+
+    await refreshPromise;
+
+    expect(config.getFields().name).toBe("from-pubsub");
+    expect(config.getFields().count).toBe(1);
   });
 });
