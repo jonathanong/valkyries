@@ -15,6 +15,7 @@ describe("dynamic-config.refresh", () => {
     getFieldsMap: () => Promise<FieldsMap>;
     handlePubSubMessage: (msg: { channel: string; message: string }) => void;
     lastRefresh: number;
+    refreshUpdatedFields: Set<string> | null;
   };
 
   // ============================================
@@ -229,5 +230,37 @@ describe("dynamic-config.refresh", () => {
 
     expect(config.getFields().name).toBe("from-pubsub");
     expect(config.getFields().count).toBe(1);
+  });
+
+  it("DynamicConfig.refresh leaves latest refreshUpdatedFields when replaced mid-refresh", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 1,
+      fieldTypes: {
+        name: "string",
+      },
+      defaultFields: {
+        name: "default",
+      },
+    });
+
+    await config.waitForInitialization();
+
+    const originalGetFieldsMap = (config as unknown as PrivateDynamicConfig).getFieldsMap;
+    (config as unknown as PrivateDynamicConfig).getFieldsMap = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return originalGetFieldsMap.call(config);
+    };
+
+    (config as unknown as PrivateDynamicConfig).lastRefresh = Date.now() - 2000;
+
+    const refreshPromise = config.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    (config as unknown as PrivateDynamicConfig).refreshUpdatedFields = new Set(["name"]);
+
+    await refreshPromise;
+
+    expect((config as unknown as PrivateDynamicConfig).refreshUpdatedFields).toEqual(new Set(["name"]));
   });
 });
