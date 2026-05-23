@@ -9,13 +9,12 @@ export function emitSetIfNotInvalidatedEvents(
   const skippedKeys: string[] = [];
 
   // ⚡ Bolt Optimization:
-  // What: Replace array.flatMap with a single indexed for loop
-  // Why: flatMap creates intermediate arrays and has higher V8 overhead.
+  // What: Use indexed loops for set/invalidation event routing.
+  // Why: Avoids iterator overhead while keeping result and entry indexes aligned.
   // Impact: Reduces GC pressure and improves throughput for batch operations.
   if (Array.isArray(results)) {
     const isCompleteResult = results.length === entries.length;
     for (let i = 0; i < entries.length; i++) {
-      if (!(i in entries)) continue;
       const entry = entries[i];
       const result = results[i];
       if (result == null) continue;
@@ -27,7 +26,6 @@ export function emitSetIfNotInvalidatedEvents(
     }
   } else {
     for (let i = 0; i < entries.length; i++) {
-      if (!(i in entries)) continue;
       const entry = entries[i];
       writtenKeys.push(entry.serializedKey);
     }
