@@ -15,13 +15,15 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     const keyArray: string[] = [];
 
     // ⚡ Bolt Optimization:
-    // What: Replace array.flatMap with a for...of loop
-    // Why: flatMap creates many intermediate arrays per iteration which causes garbage collection overhead and is significantly slower.
-    for (const key of keys) {
-      const serialized = this.toSerializedKey(key);
-      if (serialized === null) continue;
-      serializedKeys.push(serialized);
-      keyArray.push(this.getSerializedCacheKey(serialized));
+    // What: Use an indexed loop for the delete key transform.
+    // Why: Avoids iterator overhead while preserving the single-pass batch path.
+    // Impact: Reduces allocation pressure and improves throughput for batch operations.
+    for (let i = 0; i < keys.length; i++) {
+      const serialized = this.toSerializedKey(keys[i]);
+      if (serialized !== null) {
+        serializedKeys.push(serialized);
+        keyArray.push(this.getSerializedCacheKey(serialized));
+      }
     }
 
     if (keyArray.length === 0) return 0;
