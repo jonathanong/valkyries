@@ -4,4 +4,5 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 .jules
+.jules/
 *.rdb
