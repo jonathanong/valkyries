@@ -12,6 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      id-token: write
     services:
       valkey:
         image: valkey/valkey-bundle:latest
@@ -46,9 +48,12 @@ jobs:
       - run: pnpm run build
       - run: pnpm run lint
       - run: pnpm run test:coverage
-      - uses: codecov/codecov-action@v6.0.0
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6.0.0
         with:
+          fail_ci_if_error: true
           files: ./coverage/lcov.info
+          use_oidc: true
 
   actionlint:
     runs-on: ubuntu-slim
