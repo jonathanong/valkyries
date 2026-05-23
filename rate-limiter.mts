@@ -37,7 +37,8 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    const args = new Array<string>(keys.length + 1);
+    const args: string[] = [];
+    args.length = keys.length + 1;
     args[0] = this.ttl.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
@@ -69,7 +70,8 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    const args = new Array<string>(keys.length + 1);
+    const args: string[] = [];
+    args.length = keys.length + 1;
     args[0] = ttlSeconds.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
