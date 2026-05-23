@@ -73,6 +73,25 @@ describe("dynamic-config.init", () => {
     expect(fields.enabled).toBe(true);
   });
 
+  it("DynamicConfig.initialize preserves fields map identity", async () => {
+    const config = new DynamicConfig({
+      key: createDynamicConfigTestKey(),
+      staleTtlSeconds: 10,
+      fieldTypes: {
+        name: "string",
+      },
+      defaultFields: {
+        name: "default",
+      },
+    });
+    const fieldsRef = config.fields;
+
+    await config.waitForInitialization();
+
+    expect(config.fields).toBe(fieldsRef);
+    expect(config.getFields().name).toBe("default");
+  });
+
   it("DynamicConfig uses default staleTtl of 60 when not provided", async () => {
     const config = new DynamicConfig({
       key: createDynamicConfigTestKey(),

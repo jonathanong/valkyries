@@ -73,7 +73,6 @@ export class DynamicConfig {
     for (const [name, value] of toApply) {
       this.fields.set(name, value);
     }
-    }
 
     // Mark initialized so the refresh timer doesn't race with initialization
     this.lastRefresh = Date.now();
@@ -208,7 +207,6 @@ export class DynamicConfig {
 
     for (let i = 0; i < toApplyNames.length; i += 1) {
       this.fields.set(toApplyNames[i], toApplyValues[i]);
-    }
     }
   }
 
