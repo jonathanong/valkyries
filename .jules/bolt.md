@@ -7,7 +7,6 @@
 **Learning:** Sending operations (like BF.MADD) on arrays sequentially using `previous = previous.then()` within batched streams forces O(N) network round-trips to the Redis/Valkey cache server, degrading performance when loading streams.
 **Action:** When performing commutative batch insertions to Valkey (like Bloom filter adds), replace sequential promise chains with concurrent processing (using `Promise.all` or bounded concurrency) to pipeline commands and reduce wall-clock latency via pipelining/overlap. Ensure all in-flight operations settle before cleaning up or returning to avoid race conditions and preserve deterministic outcomes.
 
-<<<<<<< HEAD
 ## 2026-05-22 - Array.from Generator Iteration Speed in V8
 
 **Learning:** Using `Array.from` with a generator and mapping function is not strictly faster than a traditional `for...of` loop with `.push()` in the current Node.js/V8 environment. Benchmarking showed the traditional loop to be faster for simple generator iteration.
@@ -22,9 +21,3 @@
 
 **Learning:** Iterating over object fields using `Object.entries(obj)` allocates an array containing all key-value tuples, which can negatively impact performance and cause GC pressure if called frequently in hot paths.
 **Action:** Use a simple `for...in` loop instead of `Object.entries(obj)` when iterating over simple records or objects to avoid unnecessary allocations, while verifying object properties when needed.
-=======
-## 2024-05-22 - Replace for...of loop with traditional for loop on process exit
-
-**Learning:** Using `for...of` loops for array iteration carries a slight overhead compared to a traditional index-based `for` loop in Node.js.
-**Action:** Replace `for...of` loops with index-based `for` loops in hot paths or when optimizing trivial loops, even if the impact is low (e.g., during process exit).
->>>>>>> bb2a040 (⚡ Bolt: Optimize scriptRegistry release loop)
