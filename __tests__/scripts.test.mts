@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("node:fs", () => ({
-  readFileSync: vi.fn(),
+const { mockReadFileSync } = vi.hoisted(() => ({
+  mockReadFileSync: vi.fn(),
 }));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...mod,
+    readFileSync: mockReadFileSync,
+  };
+});
 
 describe("scripts", () => {
   beforeEach(() => {
@@ -76,10 +84,11 @@ describe("scripts", () => {
   });
 
   it("loadScript constructs the correct URL and reads the file", async () => {
-    const fs = await import("node:fs");
-    vi.mocked(fs.readFileSync).mockReturnValue("return 2");
-
+    mockReadFileSync.mockReturnValue("return 2");
     const { loadScript } = await import("../scripts.mts");
+
+    const fs = await import("node:fs");
+
     const result = loadScript("test.lua", "file:///app/");
 
     expect(fs.readFileSync).toHaveBeenCalledWith(new URL("file:///app/scripts/test.lua"), "utf8");
