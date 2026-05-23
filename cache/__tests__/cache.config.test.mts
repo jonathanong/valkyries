@@ -126,9 +126,7 @@ describe("cache.config", () => {
     expect(callCount).toBe(1);
     expect(result).toEqual({ ...primary, fresh: true });
 
-    // refreshById writes to Valkey in the background, so wait for the cache write to land.
-    await new Promise((resolve) => setTimeout(resolve, 25));
-
+    // refreshById writes to Valkey before returning.
     expect(await cache.get(primary)).toEqual({ ...primary, fresh: true });
     expect(await cache.get(alias)).toEqual({ ...primary, fresh: true });
 
@@ -344,5 +342,53 @@ describe("cache.config", () => {
     expect(result).toEqual({ id });
     expect(fetchedKeys).toEqual([id]); // only the non-empty key was fetched
     await cache.delete(id);
+  });
+
+  it("ValkeyCache refreshById waits for cache write and uses raiseOnError", async () => {
+    let releaseWrite: () => void = () => {};
+    const exec = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseWrite = () => resolve();
+        }),
+    );
+    const cache = new ValkeyCache({
+      prefix: "test",
+      ttlSeconds: 10,
+      client: { exec } as unknown as GlideClient,
+    });
+    let resolved = false;
+
+    const result = cache.refreshById(["write-order"], () => Promise.resolve({ id: "write-order" }));
+    void result.then(() => {
+      resolved = true;
+    });
+
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+    expect(resolved).toBe(false);
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect(exec).toHaveBeenCalledWith(expect.anything(), true);
+    releaseWrite();
+    await expect(result).resolves.toEqual({ id: "write-order" });
+    expect(resolved).toBe(true);
+    expect(exec).toHaveBeenCalledTimes(1);
+  });
+
+  it("ValkeyCache refreshById handles write failures after returning the source value", async () => {
+    const exec = vi.fn().mockRejectedValue(new Error("write failed"));
+    const cache = new ValkeyCache({
+      prefix: "test",
+      ttlSeconds: 10,
+      client: { exec } as unknown as GlideClient,
+    });
+
+    await expect(
+      cache.refreshById(["write-failure"], () => Promise.resolve({ id: "write-failure" })),
+    ).resolves.toEqual({
+      id: "write-failure",
+    });
+    expect(exec).toHaveBeenCalledWith(expect.anything(), true);
   });
 });

@@ -28,12 +28,12 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
           expiry: { type: TimeUnit.Seconds, count: ttl },
         });
       }
-      this.client
-        .exec(batch, false)
-        .then(() => {
-          emitValkeyEvent("cache:set", { cacheName: this.prefix, keys: aliasState.serializedKeys });
-        })
-        .catch(handleValkeyError);
+      try {
+        await this.client.exec(batch, true);
+        emitValkeyEvent("cache:set", { cacheName: this.prefix, keys: aliasState.serializedKeys });
+      } catch (cause) {
+        handleValkeyError(cause);
+      }
       return normalizedResult;
     } finally {
       trackCacheCall({
@@ -75,7 +75,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     }
     if (writtenKeys.length === 0) return;
     try {
-      await this.client.exec(batch, false);
+      await this.client.exec(batch, true);
     } catch (cause) {
       handleValkeyError(cause);
       throw cause;
