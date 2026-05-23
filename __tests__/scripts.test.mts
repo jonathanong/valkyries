@@ -16,7 +16,9 @@ describe("scripts", () => {
 
   function getExitHandler(processOnceSpy: ReturnType<typeof vi.spyOn>) {
     return (
-      processOnceSpy.mock.calls.find((call) => call[0] === "exit")?.[1] ??
+      processOnceSpy.mock.calls.find(
+        (call: [string, ...unknown[]]) => call[0] === "exit",
+      )?.[1] ??
       (() => {
         throw new Error("Expected exit handler to be registered");
       })()
