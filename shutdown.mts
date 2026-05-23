@@ -11,8 +11,7 @@ let shutdown = false;
  */
 const safeClose = (obj: { close: () => unknown }) => {
   try {
-    const result = obj.close();
-    return result instanceof Promise ? result : Promise.resolve(result);
+    return obj.close();
   } catch (error) {
     return Promise.reject(error);
   }
@@ -28,7 +27,7 @@ export const onGracefulShutdown = async (): Promise<void> => {
   }
 
   const results = await Promise.allSettled([
-    ...[...urlsToClients.values()].map(safeClose),
+    ...Array.from(urlsToClients.values(), safeClose),
     closeDynamicConfigValkeySubscriptionClient(),
   ]);
   for (const result of results) {
