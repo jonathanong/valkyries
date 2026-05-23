@@ -104,9 +104,30 @@ describe("delete.generated", () => {
 
     const spy = vi.spyOn(errors, "handleValkeyError").mockImplementation(() => {});
 
-    await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("test error");
-    expect(spy).toHaveBeenCalledWith(error);
+    try {
+      await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("test error");
+      expect(spy).toHaveBeenCalledWith(error);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 
-    spy.mockRestore();
+  it("deleteKeysWithPrefix handles Valkey unlink errors", async () => {
+    const error = new Error("test error");
+    const scan = vi.fn().mockResolvedValueOnce(["0", ["prefix:a"]]);
+    const unlink = vi.fn().mockRejectedValueOnce(error);
+    const client = { scan, unlink } as unknown as GlideClient;
+
+    const spy = vi.spyOn(errors, "handleValkeyError").mockImplementation(() => {});
+
+    try {
+      await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("test error");
+      expect(spy).toHaveBeenCalledWith(error);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(scan).toHaveBeenCalledTimes(1);
+    expect(unlink).toHaveBeenCalledTimes(1);
   });
 });
