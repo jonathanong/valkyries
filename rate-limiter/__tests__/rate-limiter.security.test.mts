@@ -34,11 +34,7 @@ describe("RateLimiter Security", () => {
 
     expect(randomUUID).toHaveBeenCalledTimes(1);
     const args = client.invokeScript.mock.calls[0][1].args;
-    expect(args).toEqual([
-      "10",
-      "mocked-uuid-0",
-      "mocked-uuid-1",
-    ]);
+    expect(args).toEqual(["10", "mocked-uuid-0", "mocked-uuid-1"]);
   });
 
   it("addAndCheck() uses randomUUID()", async () => {
@@ -56,10 +52,6 @@ describe("RateLimiter Security", () => {
 
     expect(randomUUID).toHaveBeenCalledTimes(1);
     const args = client.invokeScript.mock.calls[0][1].args;
-    expect(args).toEqual([
-      "10",
-      "mocked-uuid-0",
-      "mocked-uuid-1",
-    ]);
+    expect(args).toEqual(["10", "mocked-uuid-0", "mocked-uuid-1"]);
   });
 });
