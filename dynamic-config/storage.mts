@@ -11,13 +11,13 @@ export const dynamicConfigSetFieldsScript = registerScript(
 export async function getDynamicConfigFieldsMap(
   key: string,
   client: GlideClient = dynamicConfigValkeyClient,
-): Promise<Map<string, { field: unknown; value: unknown }>> {
+): Promise<Record<string, { field: unknown; value: unknown }>> {
   const fields = await client.hgetall(key);
-  const fieldsMap = new Map<string, { field: unknown; value: unknown }>();
+  const fieldsMap: Record<string, { field: unknown; value: unknown }> = {};
   if (Array.isArray(fields)) {
     for (const entry of fields) {
-      if (entry && typeof entry === "object" && "field" in entry && "value" in entry) {
-        fieldsMap.set(entry.field.toString(), entry);
+      if (isFieldEntry(entry) && entry.field != null) {
+        fieldsMap[entry.field.toString()] = entry;
       }
     }
   }
@@ -31,12 +31,12 @@ export function applyFieldsFromMap({
   defaultFields,
 }: {
   fields: Map<string, DynamicConfigField>;
-  fieldsMap: Map<string, { field: unknown; value: unknown }>;
+  fieldsMap: Record<string, { field: unknown; value: unknown }>;
   fieldTypes: Record<string, DynamicConfigFieldType>;
   defaultFields: Record<string, DynamicConfigField>;
 }) {
   for (const [name, type] of Object.entries(fieldTypes)) {
-    const valkeyEntry = fieldsMap.get(name);
+    const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null
         ? parseField(type, stringifyValkeyField(valkeyEntry.value))
@@ -63,14 +63,14 @@ export function buildMissingDefaultWrites({
   fieldTypes,
   defaultFields,
 }: {
-  fieldsMap: Map<string, { field: unknown; value: unknown }>;
+  fieldsMap: Record<string, { field: unknown; value: unknown }>;
   fieldTypes: Record<string, DynamicConfigFieldType>;
   defaultFields: Record<string, DynamicConfigField>;
 }) {
   const toApply: [string, DynamicConfigField][] = [];
   const writeArgs: string[] = [];
   for (const [name, type] of Object.entries(fieldTypes)) {
-    const valkeyEntry = fieldsMap.get(name);
+    const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null
         ? parseField(type, stringifyValkeyField(valkeyEntry.value))
@@ -88,4 +88,8 @@ function stringifyValkeyField(value: unknown): string {
     return String(value);
   }
   return JSON.stringify(value) ?? "";
+}
+
+function isFieldEntry(entry: unknown): entry is { field: unknown; value: unknown } {
+  return !!entry && typeof entry === "object" && "field" in entry && "value" in entry;
 }

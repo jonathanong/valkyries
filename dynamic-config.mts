@@ -90,11 +90,11 @@ export class DynamicConfig {
   stringifyField = stringifyField;
   parseField = parseField;
 
-  private getFieldsMap(): Promise<Map<string, { field: unknown; value: unknown }>> {
+  private getFieldsMap(): Promise<Record<string, { field: unknown; value: unknown }>> {
     return getDynamicConfigFieldsMap(this.key, this.client);
   }
 
-  private applyFieldsFromMap(fieldsMap: Map<string, { field: unknown; value: unknown }>): void {
+  private applyFieldsFromMap(fieldsMap: Record<string, { field: unknown; value: unknown }>): void {
     applyFieldsFromMap({
       fields: this.fields,
       fieldsMap,

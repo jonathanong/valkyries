@@ -7,3 +7,8 @@
 
 **Learning:** Iterating over object fields using `Object.entries(obj)` allocates an array containing all key-value tuples, which can negatively impact performance and cause GC pressure if called frequently in hot paths.
 **Action:** Use a simple `for...in` loop instead of `Object.entries(obj)` when iterating over simple records or objects to avoid unnecessary allocations, while verifying object properties when needed.
+
+## 2024-05-22 - Single-pass Record Population for Fields
+
+**Learning:** Instantiating large `Map` objects incrementally inside a `for...of` loop with repeated checks can add overhead. For `@valkey/valkey-glide`'s `hgetall` result (`{ field, value }[]`), using a single-pass loop to populate a plain object (`Record`) can avoid extra intermediate allocations while preserving defensive type checks.
+**Action:** When standard object-map access is sufficient, iterate through verified `hgetall` entries once, validate shape per entry, and set them directly on a plain object to balance performance and resilience.
