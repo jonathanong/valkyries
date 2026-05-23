@@ -179,29 +179,31 @@ export class DynamicConfig {
   // set the fields in valkey and publish change events atomically via Lua script,
   // then apply local state only after a successful write
   async setFields(fields: Record<string, DynamicConfigField>): Promise<void> {
-    const toApply: [string, DynamicConfigField][] = [];
+    const toApplyNames: string[] = [];
+    const toApplyValues: DynamicConfigField[] = [];
     const args: string[] = [];
 
     // Use for-in to iterate over fields without allocating an array of entries
     for (const name in fields) {
       if (!Object.hasOwn(fields, name)) continue;
 
-      if (!this.fieldTypes[name]) {
+      const type = this.fieldTypes[name];
+      if (!type) {
         throw new Error(`Unknown field: ${name}`);
       }
 
       const value = fields[name];
-      const type = this.fieldTypes[name];
       const processedValue = processFieldValue(type, value);
 
-      toApply.push([name, processedValue]);
+      toApplyNames.push(name);
+      toApplyValues.push(processedValue);
       args.push(name, stringifyField(type, processedValue));
     }
 
     await writeDynamicConfigFields({ key: this.key, args, client: this.client });
 
-    for (const [name, processedValue] of toApply) {
-      this.fields.set(name, processedValue);
+    for (let i = 0; i < toApplyNames.length; i += 1) {
+      this.fields.set(toApplyNames[i], toApplyValues[i]);
     }
   }
 
