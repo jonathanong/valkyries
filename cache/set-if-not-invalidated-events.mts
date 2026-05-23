@@ -15,8 +15,8 @@ export function emitSetIfNotInvalidatedEvents(
   if (Array.isArray(results)) {
     const isCompleteResult = results.length === entries.length;
     for (let i = 0; i < entries.length; i++) {
+      if (!(i in entries)) continue;
       const entry = entries[i];
-      if (entry == null) continue;
       const result = results[i];
       if (result == null) continue;
       if (result === 1 || result === 1n) {
@@ -27,10 +27,9 @@ export function emitSetIfNotInvalidatedEvents(
     }
   } else {
     for (let i = 0; i < entries.length; i++) {
+      if (!(i in entries)) continue;
       const entry = entries[i];
-      if (entry != null) {
-        writtenKeys.push(entry.serializedKey);
-      }
+      writtenKeys.push(entry.serializedKey);
     }
   }
   if (writtenKeys.length > 0)

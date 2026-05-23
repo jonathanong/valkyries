@@ -199,8 +199,8 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     // Why: flatMap creates intermediate arrays and has higher V8 overhead.
     // Impact: Reduces GC pressure and improves throughput for batch operations.
     for (let i = 0; i < entries.length; i++) {
+      if (!(i in entries)) continue;
       const entry = entries[i];
-      if (entry == null) continue;
       const serializedKey = this.toSerializedKey(entry.key);
       if (serializedKey !== null) {
         result.push({ ...entry, serializedKey });
