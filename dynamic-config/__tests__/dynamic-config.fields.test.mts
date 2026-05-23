@@ -139,4 +139,22 @@ describe("dynamic-config.fields", () => {
 
     expect(config.getFields().name).toBe("default");
   });
+
+  it("ignores inherited properties", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 10,
+      fieldTypes: { name: "string" },
+      defaultFields: { name: "default" },
+    });
+    await config.waitForInitialization();
+
+    const fields = Object.create({ inherited: "1" });
+    fields.name = "42";
+    await expect(config.setFields(fields)).resolves.toBeUndefined();
+    expect(config.getFields().name).toEqual("42");
+
+    await config.close();
+  });
 });
