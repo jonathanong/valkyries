@@ -21,7 +21,6 @@ export async function getDynamicConfigFieldsMap(
       }
     }
   }
-
   return fieldsMap;
 }
 
