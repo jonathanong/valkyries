@@ -34,8 +34,15 @@ export class RateLimiter {
     if (filteredIds.length === 0) return;
     const keys = filteredIds.map((id) => this.getKey(id));
     // Single script call for all keys (server time is used in script)
-    // Use CSPRNG to prevent predictability and collisions
-    const args = [this.ttl.toString(), ...keys.map(() => randomUUID())];
+    // Use CSPRNG to prevent predictability and collisions.
+    // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
+    const base = randomUUID();
+    const args: string[] = [];
+    args.length = keys.length + 1;
+    args[0] = this.ttl.toString();
+    for (let i = 0; i < keys.length; i++) {
+      args[i + 1] = `${base}-${i}`;
+    }
     await this.client.invokeScript(rateLimiterAddScript, { keys, args });
     emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
   }
@@ -60,8 +67,15 @@ export class RateLimiter {
     const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return { counts: [], limited: false };
     const keys = filteredIds.map((id) => this.getKey(id));
-    // Use CSPRNG to prevent predictability and collisions
-    const args = [ttlSeconds.toString(), ...keys.map(() => randomUUID())];
+    // Use CSPRNG to prevent predictability and collisions.
+    // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
+    const base = randomUUID();
+    const args: string[] = [];
+    args.length = keys.length + 1;
+    args[0] = ttlSeconds.toString();
+    for (let i = 0; i < keys.length; i++) {
+      args[i + 1] = `${base}-${i}`;
+    }
     const results = await this.client.invokeScript(rateLimiterAddAndCheckScript, {
       keys,
       args,
