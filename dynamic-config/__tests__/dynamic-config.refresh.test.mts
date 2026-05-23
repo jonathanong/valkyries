@@ -10,6 +10,23 @@ import { dynamicConfigValkeyClient } from "../../clients.mts";
 describe("dynamic-config.refresh", () => {
   afterEach(closeTestDynamicConfigs);
   afterAll(closeTestDynamicConfigContext);
+  type FieldsMap = Record<string, { field: unknown; value: unknown }>;
+  type PrivateDynamicConfig = {
+    getFieldsMap: () => Promise<FieldsMap>;
+    handlePubSubMessage: (msg: { channel: string; message: string }) => void;
+    lastRefresh: number;
+    refreshUpdatedFields: Set<string> | null;
+  };
+
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function wrapGetFieldsMapWithDelay(config: PrivateDynamicConfig, ms: number) {
+    const originalGetFieldsMap = config.getFieldsMap;
+    config.getFieldsMap = async () => {
+      await delay(ms);
+      return originalGetFieldsMap.call(config);
+    };
+  }
 
   // ============================================
   // Refresh Tests
@@ -150,5 +167,81 @@ describe("dynamic-config.refresh", () => {
     // Should use default values for missing fields
     expect(config.getFields().name).toBe("default");
     expect(config.getFields().count).toBe(42);
+  });
+
+  it("DynamicConfig.refresh does not overlap refresh runs", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 1,
+      fieldTypes: {
+        name: "string",
+      },
+      defaultFields: {
+        name: "default",
+      },
+    });
+
+    await config.waitForInitialization();
+
+    const originalGetFieldsMap = (config as unknown as PrivateDynamicConfig).getFieldsMap;
+    let activeCalls = 0;
+    let maxConcurrentCalls = 0;
+    (config as unknown as PrivateDynamicConfig).getFieldsMap = async () => {
+      activeCalls += 1;
+      maxConcurrentCalls = Math.max(maxConcurrentCalls, activeCalls);
+      await delay(25);
+      const result = await originalGetFieldsMap.call(config);
+      activeCalls -= 1;
+      return result;
+    };
+
+    (config as unknown as PrivateDynamicConfig).lastRefresh = Date.now() - 2000;
+
+    const refreshPromise = config.refresh();
+    await delay(5);
+    (config as unknown as PrivateDynamicConfig).refreshUpdatedFields = new Set(["name"]);
+    await Promise.all([refreshPromise, config.refresh(), config.refresh()]);
+
+    expect((config as unknown as PrivateDynamicConfig).refreshUpdatedFields).toEqual(
+      new Set(["name"]),
+    );
+
+    expect(maxConcurrentCalls).toBe(1);
+  });
+
+  it("DynamicConfig.refresh skips fields updated by pubsub during refresh", async () => {
+    const key = createDynamicConfigTestKey();
+    const config = new DynamicConfig({
+      key,
+      staleTtlSeconds: 1,
+      fieldTypes: {
+        name: "string",
+        count: "number",
+      },
+      defaultFields: {
+        name: "default",
+        count: 1,
+      },
+    });
+
+    await config.waitForInitialization();
+
+    wrapGetFieldsMapWithDelay(config as unknown as PrivateDynamicConfig, 25);
+
+    (config as unknown as PrivateDynamicConfig).lastRefresh = Date.now() - 2000;
+
+    const refreshPromise = config.refresh();
+    await delay(5);
+
+    (config as unknown as PrivateDynamicConfig).handlePubSubMessage({
+      channel: `dynamic-config:${key}:name`,
+      message: "from-pubsub",
+    });
+
+    await refreshPromise;
+
+    expect(config.getFields().name).toBe("from-pubsub");
+    expect(config.getFields().count).toBe(1);
   });
 });

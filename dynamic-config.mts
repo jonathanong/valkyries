@@ -34,6 +34,8 @@ export class DynamicConfig {
   private client: GlideClient;
   private closed: boolean = false;
   private lastRefresh: number = 0;
+  private isRefreshing: boolean = false;
+  private refreshUpdatedFields: Set<string> | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private readonly messageHandler = (msg: PubSubMsg) => this.handlePubSubMessage(msg);
 
@@ -97,12 +99,16 @@ export class DynamicConfig {
     return getDynamicConfigFieldsMap(this.key, this.client);
   }
 
-  private applyFieldsFromMap(fieldsMap: Record<string, { field: unknown; value: unknown }>): void {
-    applyFieldsFromMap({
+  private async applyFieldsFromMap(
+    fieldsMap: Record<string, { field: unknown; value: unknown }>,
+    skipFieldNames: Set<string> = new Set(),
+  ): Promise<void> {
+    await applyFieldsFromMap({
       fields: this.fields,
       fieldsMap,
       fieldTypes: this.fieldTypes,
       defaultFields: this.defaultFields,
+      skipFieldNames,
     });
   }
 
@@ -130,6 +136,7 @@ export class DynamicConfig {
     const type = this.fieldTypes[fieldName];
     if (!type) return;
 
+    this.refreshUpdatedFields?.add(fieldName);
     const value = parseField(type, msg.message.toString());
     this.fields.set(fieldName, value);
   }
@@ -157,17 +164,26 @@ export class DynamicConfig {
 
   async refresh() {
     if (this.closed) return;
+    if (this.isRefreshing) return;
     const now = Date.now();
     if (now - this.lastRefresh < this.staleTtl * 1000) return;
     this.lastRefresh = now; // Optimistic claim: prevents concurrent duplicate refreshes
+    const refreshUpdatedFields = new Set<string>();
+    this.refreshUpdatedFields = refreshUpdatedFields;
+    this.isRefreshing = true;
     try {
       const fieldsMap = await this.getFieldsMap();
-      this.applyFieldsFromMap(fieldsMap);
+      await this.applyFieldsFromMap(fieldsMap, refreshUpdatedFields);
     } catch (err) {
       /* v8 ignore next -- transient Valkey failures are environment-dependent. */
       this.lastRefresh = 0; // Reset so the next interval can retry after a transient failure
       /* v8 ignore next -- rethrow preserves caller-visible refresh failure semantics. */
       throw err;
+    } finally {
+      if (this.refreshUpdatedFields === refreshUpdatedFields) {
+        this.refreshUpdatedFields = null;
+      }
+      this.isRefreshing = false;
     }
   }
 

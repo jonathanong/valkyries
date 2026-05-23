@@ -24,24 +24,38 @@ export async function getDynamicConfigFieldsMap(
   return fieldsMap;
 }
 
-export function applyFieldsFromMap({
+export async function applyFieldsFromMap({
   fields,
   fieldsMap,
   fieldTypes,
   defaultFields,
+  skipFieldNames,
 }: {
   fields: Map<string, DynamicConfigField>;
   fieldsMap: Record<string, { field: unknown; value: unknown }>;
   fieldTypes: Record<string, DynamicConfigFieldType>;
   defaultFields: Record<string, DynamicConfigField>;
-}) {
-  for (const [name, type] of Object.entries(fieldTypes)) {
+  skipFieldNames?: ReadonlySet<string>;
+}): Promise<void> {
+  let parsedCount = 0;
+
+  for (const name in fieldTypes) {
+    if (!Object.hasOwn(fieldTypes, name)) continue;
+    const type = fieldTypes[name];
     const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null
         ? parseField(type, stringifyValkeyField(valkeyEntry.value))
         : defaultFields[name];
-    fields.set(name, value);
+
+    if (!skipFieldNames?.has(name)) {
+      fields.set(name, value);
+    }
+
+    // ⚡ Bolt: Yield to the event loop every 1000 fields to prevent blocking when applying huge configs.
+    if (++parsedCount % 1000 === 0) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
   }
 }
 
