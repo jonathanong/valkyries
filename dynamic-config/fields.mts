@@ -1,13 +1,15 @@
 import type { DynamicConfigField, DynamicConfigFieldType } from "../types.mts";
 
+const hasOwn = (obj: Record<string, unknown>, key: string): key is string =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 export function validateFieldTypes(
   fieldTypes: Record<string, DynamicConfigFieldType>,
   defaultFields: Record<string, DynamicConfigField>,
 ) {
-  // ⚡ Bolt: Optimize object property iteration by using a standard `for...in` loop instead of `Object.entries`.
-  // This avoids intermediate array/tuple allocations overhead.
+  // ⚡ Bolt: Use a `for...in` loop to avoid allocation and GC overhead.
   for (const name in fieldTypes) {
-    if (!Object.hasOwn(fieldTypes, name)) continue;
+    if (!hasOwn(fieldTypes, name)) continue;
     const type = fieldTypes[name];
     if (!(name in defaultFields)) throw new Error(`Default field ${name} is not defined`);
     const defaultValue = defaultFields[name];
