@@ -242,6 +242,45 @@ describe("cache.stale-ttl", () => {
     await cache.delete(id, slug, upperSlug);
   });
 
+  it("collectRefreshAliases produces the same first-valid alias and dedupe output across threshold boundary", () => {
+    const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10 });
+    const collectRefreshAliases = (
+      cache as unknown as {
+        collectRefreshAliases: (aliases: string[]) => {
+          firstValidAlias: string | null;
+          serializedKeys: string[];
+        };
+      }
+    ).collectRefreshAliases;
+
+    const shortAliases = [
+      "",
+      " ",
+      "primary",
+      "PRIMARY",
+      "alpha",
+      "ALPHA",
+      "",
+      "beta",
+      "  beta  ",
+      "gamma",
+      "",
+      "GAMMA",
+      "delta",
+      "\t",
+      "DELTA",
+    ];
+    const longAliases = [...shortAliases, "", "primary", "alpha", "beta"];
+
+    const shortState = collectRefreshAliases.call(cache, shortAliases);
+    const longState = collectRefreshAliases.call(cache, longAliases);
+
+    expect(shortState.firstValidAlias).toBe("primary");
+    expect(longState.firstValidAlias).toBe("primary");
+    expect(longState.serializedKeys).toEqual(shortState.serializedKeys);
+    expect(shortState.serializedKeys).toEqual(["primary", "alpha", "beta", "gamma", "delta"]);
+  });
+
   it("ValkeyCache refreshById caches null using nullTtl", async () => {
     const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 600, nullTtlSeconds: 5 });
     const id = `refresh-null-id-${Math.random().toString(36).slice(2)}`;

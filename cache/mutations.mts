@@ -7,7 +7,7 @@ import { cacheSetIfNotInvalidatedScript } from "./constants.mts";
 import { ValkeyCacheBatchRead } from "./batch-read.mts";
 import { emitSetIfNotInvalidatedEvents } from "./set-if-not-invalidated-events.mts";
 
-const REFRESH_ALIAS_DEDUPE_THRESHOLD = 30;
+const REFRESH_ALIAS_DEDUPE_THRESHOLD = 15;
 
 export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchRead<K> {
   async refreshById<T>(
@@ -162,21 +162,41 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   }
 
   private collectRefreshAliases(aliases: K[]) {
-    let firstValidAlias: K | null = null;
-    const serializedKeys: string[] = [];
     const len = aliases.length;
-    const useSet = len > REFRESH_ALIAS_DEDUPE_THRESHOLD;
-    const seenSet = useSet ? new Set<string>() : null;
+    if (len === 0) return { firstValidAlias: null, serializedKeys: [] };
+
+    let firstValidAlias: K | null = null;
+    let firstSerialized: string | null = null;
+
     for (let i = 0; i < len; i++) {
-      const key = aliases[i];
-      const serialized = this.toSerializedKey(key);
+      const serialized = this.toSerializedKey(aliases[i]);
       if (serialized === null) continue;
-      if (firstValidAlias === null) firstValidAlias = key;
-      if (seenSet !== null) {
-        if (seenSet.has(serialized)) continue;
+      firstValidAlias = aliases[i];
+      firstSerialized = serialized;
+      break;
+    }
+
+    if (firstValidAlias === null || firstSerialized === null)
+      return { firstValidAlias, serializedKeys: [] };
+
+    const serializedKeys: string[] = [firstSerialized];
+
+    // ⚡ Bolt Optimization:
+    // Split alias dedupe between Set and includes at threshold to avoid per-iteration branching
+    // and O(N^2) includes checks for arrays with more than 15 entries.
+    const useSet = len > REFRESH_ALIAS_DEDUPE_THRESHOLD;
+    if (useSet) {
+      const seenSet = new Set([firstSerialized]);
+      for (let i = 0; i < len; i++) {
+        const serialized = this.toSerializedKey(aliases[i]);
+        if (serialized === null || seenSet.has(serialized)) continue;
         seenSet.add(serialized);
         serializedKeys.push(serialized);
-      } else if (!serializedKeys.includes(serialized)) {
+      }
+    } else {
+      for (let i = 0; i < len; i++) {
+        const serialized = this.toSerializedKey(aliases[i]);
+        if (serialized === null || serializedKeys.includes(serialized)) continue;
         serializedKeys.push(serialized);
       }
     }
