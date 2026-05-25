@@ -16,6 +16,39 @@ export async function rebuild(state: BloomFilterState, items: string[]): Promise
   );
 }
 
+async function processBatchConcurrent(state: BloomFilterState, batch: string[]): Promise<void> {
+  // ⚡ Bolt Optimization:
+  // What: Concurrent BF.MADD chunk processing
+  // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
+  // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
+  const chunks = Array.from(chunkItems(batch, state.batchSize));
+  let firstError: unknown;
+
+  // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
+  // We must also wait for all in-flight commands in a concurrent set to settle before
+  // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
+  const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
+  for (let i = 0; i < chunks.length; i += concurrencyLimit) {
+    const slice = chunks.slice(i, i + concurrencyLimit);
+    const settled = await Promise.allSettled(
+      slice.map((chunk) => state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk])),
+    );
+
+    for (let j = 0; j < settled.length; j++) {
+      const res = settled[j];
+      if (res.status === "fulfilled") {
+        emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
+      } else if (firstError === undefined) {
+        firstError = res.reason;
+      }
+    }
+
+    if (firstError !== undefined) break;
+  }
+
+  if (firstError !== undefined) throw firstError;
+}
+
 export async function rebuildFromStream(
   state: BloomFilterState,
   batches: AsyncIterable<string[]>,
@@ -28,47 +61,7 @@ export async function rebuildFromStream(
   });
   try {
     for await (const batch of batches) {
-      // ⚡ Bolt Optimization:
-      // What: Concurrent BF.MADD chunk processing
-      // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
-      // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
-      const chunks = Array.from(chunkItems(batch, state.batchSize));
-      const results: boolean[] = Array.from({ length: chunks.length }, () => false);
-      let firstError: unknown;
-
-      // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
-      // We must also wait for all in-flight commands in a concurrent set to settle before
-      // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
-      const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
-      for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-        const slice = chunks.slice(i, i + concurrencyLimit);
-        const settled = await Promise.allSettled(
-          slice.map((chunk) =>
-            state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]),
-          ),
-        );
-
-        for (let j = 0; j < settled.length; j++) {
-          const res = settled[j];
-          if (res.status === "fulfilled") {
-            results[i + j] = true;
-          } else if (firstError === undefined) {
-            firstError = res.reason;
-          }
-        }
-
-        // Emit events for this concurrent slice in order before moving to the next slice
-        // or throwing an error, maintaining sequential event ordering for consumers.
-        for (let j = 0; j < settled.length; j++) {
-          if (results[i + j]) {
-            emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
-          }
-        }
-
-        if (firstError !== undefined) break;
-      }
-
-      if (firstError !== undefined) throw firstError;
+      await processBatchConcurrent(state, batch);
     }
     await state.client.rename(state.buildingKey, state.liveKey);
   } catch (error) {
