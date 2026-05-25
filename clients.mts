@@ -6,7 +6,7 @@ import {
   type PubSubMsg,
 } from "@valkey/valkey-glide";
 import { config } from "./config.mts";
-import { handleValkeyError } from "./errors.mts";
+import { handleValkeyError, ValkeyUrlError } from "./errors.mts";
 
 const CLIENT_CLOSE_SETTLE_MS = 100;
 
@@ -118,7 +118,7 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       lazyConnect: options?.lazyConnect ?? true,
     };
   } catch (cause) {
-    throw new Error(`Invalid Valkey URL: ${url}`, { cause });
+    throw new ValkeyUrlError("Invalid Valkey URL", { cause });
   }
 }
 
