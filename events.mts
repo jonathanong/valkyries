@@ -47,8 +47,7 @@ export function emitValkeyEvent<K extends keyof ValkeyEventMap>(
   ...args: ValkeyEventMap[K]
 ) {
   try {
-    // @ts-expect-error TypeScript cannot resolve conditional types in EventEmitter.emit for generic K
-    valkeyEvents.emit(event, ...args);
+    valkeyEvents.emit(event as keyof ValkeyEventMap, ...args);
   } catch (err) {
     handleValkeyError(err);
   }
