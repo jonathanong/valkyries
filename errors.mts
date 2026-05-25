@@ -22,3 +22,10 @@ export function handleValkeyError(error: unknown): void {
   const normalized = error instanceof Error ? error : new Error(String(error));
   valkeyErrorHandler(normalized);
 }
+
+export class RateLimiterConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimiterConfigurationError";
+  }
+}

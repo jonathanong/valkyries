@@ -1,6 +1,7 @@
 import { RateLimiter } from "../../rate-limiter.mts";
 import { rateLimiterValkeyClient } from "../../clients.mts";
 import { valkeyEvents } from "../../events.mts";
+import { RateLimiterConfigurationError } from "../../errors.mts";
 import { it, expect, describe, vi } from "vitest";
 import assert from "node:assert";
 import type { GlideClient } from "@valkey/valkey-glide";
@@ -8,13 +9,13 @@ import type { GlideClient } from "@valkey/valkey-glide";
 describe("rate-limiter.generated", () => {
   it("RateLimiter validates prefix and ttl", () => {
     expect(() => new RateLimiter({ prefix: "", ttlSeconds: 10 })).toThrow(
-      "RateLimiter requires a prefix",
+      RateLimiterConfigurationError,
     );
     expect(() => new RateLimiter({ prefix: " ", ttlSeconds: 10 })).toThrow(
       "RateLimiter requires a prefix",
     );
     expect(() => new RateLimiter({ prefix: "test", ttlSeconds: 0 })).toThrow(
-      "RateLimiter: ttlSeconds must be greater than 0",
+      RateLimiterConfigurationError,
     );
     expect(() => new RateLimiter({ prefix: "test", ttlSeconds: Number.POSITIVE_INFINITY })).toThrow(
       "RateLimiter: ttlSeconds must be greater than 0",
