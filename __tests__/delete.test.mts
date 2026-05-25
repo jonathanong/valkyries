@@ -1,11 +1,22 @@
-import { deleteKeysWithPrefix } from "../delete.mts";
-import { it, expect, describe, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GlideClient } from "@valkey/valkey-glide";
-import * as errors from "../errors.mts";
+import { deleteKeysWithPrefix } from "../delete.mts";
+
+const { mockHandleValkeyError } = vi.hoisted(() => ({
+  mockHandleValkeyError: vi.fn(),
+}));
+
+vi.mock("../errors.mts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../errors.mts")>();
+  return {
+    ...actual,
+    handleValkeyError: mockHandleValkeyError,
+  };
+});
 
 describe("deleteKeysWithPrefix", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it("should match keys by prefix and delete them", async () => {
@@ -25,7 +36,7 @@ describe("deleteKeysWithPrefix", () => {
     expect(unlinkMock).toHaveBeenCalledWith(["prefix:key1", "prefix:key2"]);
   });
 
-  it("should handle empty patterns or no matching keys", async () => {
+  it("should do nothing when no keys match the pattern", async () => {
     const scanMock = vi.fn().mockResolvedValueOnce(["0", []]);
     const unlinkMock = vi.fn();
 
@@ -72,10 +83,8 @@ describe("deleteKeysWithPrefix", () => {
     const scanMock = vi.fn().mockRejectedValueOnce(mockError);
     const client = { scan: scanMock } as unknown as GlideClient;
 
-    const spy = vi.spyOn(errors, "handleValkeyError").mockImplementation(() => {});
-
     await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("Scan failed");
-    expect(spy).toHaveBeenCalledWith(mockError);
+    expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
   it("should handle error from unlink and propagate it after calling handleValkeyError", async () => {
@@ -88,11 +97,47 @@ describe("deleteKeysWithPrefix", () => {
       unlink: unlinkMock,
     } as unknown as GlideClient;
 
-    const spy = vi.spyOn(errors, "handleValkeyError").mockImplementation(() => {});
-
     await expect(deleteKeysWithPrefix(client, "prefix:*")).rejects.toThrow("Unlink failed");
     expect(scanMock).toHaveBeenCalledTimes(1);
     expect(unlinkMock).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith(mockError);
+    expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
+  });
+
+  it("should await unlink before scanning the next cursor page", async () => {
+    const scanCalls: string[] = [];
+    let resolveUnlink: () => void;
+    const blockUnlink = new Promise<void>((resolve) => {
+      resolveUnlink = resolve;
+    });
+
+    const scanMock = vi.fn(async (cursor: string) => {
+      scanCalls.push(`scan:${cursor}`);
+      if (cursor === "0") {
+        return ["10", ["prefix:1"]];
+      }
+      return ["0", []];
+    });
+
+    const unlinkMock = vi.fn().mockImplementation(async () => {
+      scanCalls.push("unlink");
+      await blockUnlink;
+      return 1;
+    });
+
+    const client = {
+      scan: scanMock,
+      unlink: unlinkMock,
+    } as unknown as GlideClient;
+
+    const result = deleteKeysWithPrefix(client, "prefix:*");
+
+    await Promise.resolve();
+    expect(scanCalls).toEqual(["scan:0", "unlink"]);
+    resolveUnlink!();
+    await result;
+
+    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
+    expect(unlinkMock).toHaveBeenCalledTimes(1);
+    expect(scanMock).toHaveBeenCalledTimes(2);
   });
 });
