@@ -1,9 +1,30 @@
 import { handleValkeyError } from "./errors.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 
+const UNLINK_BATCH_SIZE = 100;
+
 export const deleteKeysWithPrefix = async (client: GlideClient, pattern: string): Promise<void> => {
   let cursor = "0";
   const unlinkPromises: Promise<number>[] = [];
+  let primaryError: unknown = null;
+
+  const flushUnlinkPromises = async () => {
+    if (unlinkPromises.length === 0) {
+      return;
+    }
+
+    const results = await Promise.allSettled(unlinkPromises);
+    unlinkPromises.length = 0;
+
+    for (const result of results) {
+      if (result.status === "rejected") {
+        handleValkeyError(result.reason);
+        if (primaryError === null) {
+          primaryError = result.reason;
+        }
+      }
+    }
+  };
 
   try {
     do {
@@ -14,25 +35,30 @@ export const deleteKeysWithPrefix = async (client: GlideClient, pattern: string)
       const keys = result[1] as string[];
 
       if (keys.length > 0) {
-        // Attach a no-op catch to prevent unhandled rejection crashes if scan fails
-        // before Promise.all is reached.
-        const p = client.unlink(keys);
-        p.catch(() => {});
-        unlinkPromises.push(p);
+        unlinkPromises.push(client.unlink(keys));
 
-        // Prevent unbounded memory/concurrency by batching promises
-        if (unlinkPromises.length >= 100) {
-          await Promise.all(unlinkPromises);
-          unlinkPromises.length = 0;
+        // Prevent unbounded memory/concurrency by batching promises.
+        if (unlinkPromises.length >= UNLINK_BATCH_SIZE) {
+          await flushUnlinkPromises();
+          if (primaryError !== null) {
+            throw primaryError;
+          }
         }
       }
     } while (cursor !== "0");
 
     if (unlinkPromises.length > 0) {
-      await Promise.all(unlinkPromises);
+      await flushUnlinkPromises();
     }
   } catch (err) {
-    handleValkeyError(err);
-    throw err;
+    if (primaryError === null) {
+      primaryError = err;
+    }
+    await flushUnlinkPromises();
+  }
+
+  if (primaryError !== null) {
+    handleValkeyError(primaryError);
+    throw primaryError;
   }
 };
