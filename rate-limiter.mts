@@ -5,7 +5,7 @@ import type { GlideClient } from "@valkey/valkey-glide";
 import { randomUUID } from "node:crypto";
 import { deleteKeysWithPrefix } from "./delete.mts";
 import { emitValkeyEvent } from "./events.mts";
-import { normalizeCountResult } from "./utils.mts";
+import { normalizeCountResult, validatePrefixAndTtl } from "./utils.mts";
 import { handleValkeyError } from "./errors.mts";
 
 const NAMESPACE = "rate-limiter";
@@ -22,8 +22,7 @@ export class RateLimiter {
   private client: GlideClient;
 
   constructor({ prefix, ttlSeconds, client = rateLimiterValkeyClient }: RateLimiterOptions) {
-    if (!prefix) throw new Error("RateLimiter requires a prefix");
-    if (!(ttlSeconds > 0)) throw new Error("RateLimiter: ttlSeconds must be greater than 0");
+    validatePrefixAndTtl(prefix, ttlSeconds, "RateLimiter");
     this.prefix = prefix;
     this.ttl = ttlSeconds;
     this.client = client;
