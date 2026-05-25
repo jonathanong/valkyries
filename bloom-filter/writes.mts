@@ -58,9 +58,9 @@ async function processChunkSlice(
   startIndex: number,
   concurrencyLimit: number,
   results: unknown[],
-): Promise<unknown | undefined> {
+): Promise<unknown> {
   const slice = chunks.slice(startIndex, startIndex + concurrencyLimit);
-  let firstError: unknown | undefined;
+  let firstError: unknown;
   const settled = await Promise.allSettled(
     slice.map((chunk) =>
       state.client.invokeScript(bloomFilterAddScript, {
