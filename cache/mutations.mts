@@ -162,44 +162,45 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   }
 
   private collectRefreshAliases(aliases: K[]) {
-    let firstValidAlias: K | null = null;
     const len = aliases.length;
-    if (len === 0) return { firstValidAlias, serializedKeys: [] };
+    if (len === 0) return { firstValidAlias: null, serializedKeys: [] };
+
+    let firstValidAlias: K | null = null;
+    let firstSerialized: string | null = null;
+
+    for (let i = 0; i < len; i++) {
+      const serialized = this.toSerializedKey(aliases[i]);
+      if (serialized === null) continue;
+      firstValidAlias = aliases[i];
+      firstSerialized = serialized;
+      break;
+    }
+
+    if (firstValidAlias === null || firstSerialized === null)
+      return { firstValidAlias, serializedKeys: [] };
+
+    const serializedKeys: string[] = [firstSerialized];
 
     // ⚡ Bolt Optimization:
-    // What: Split deduplication logic into two dedicated loops based on a lower threshold (15).
-    // Why: Avoids conditional branching overhead inside the loop and prevents O(N^2) Includes checks for sizes 15-30.
-    // Impact: Improves deduplication performance for medium-sized alias arrays without penalizing very small ones.
+    // Split alias dedupe between Set and includes at threshold to avoid per-iteration branching
+    // and O(N^2) includes checks for arrays with more than 15 entries.
     const useSet = len > REFRESH_ALIAS_DEDUPE_THRESHOLD;
     if (useSet) {
-      const seenSet = new Set<string>();
-      const serializedKeys: string[] = [];
+      const seenSet = new Set([firstSerialized]);
       for (let i = 0; i < len; i++) {
-        const key = aliases[i];
-        const serialized = this.toSerializedKey(key);
-        if (serialized === null) continue;
-        if (firstValidAlias === null) firstValidAlias = key;
-
-        if (!seenSet.has(serialized)) {
-          seenSet.add(serialized);
-          serializedKeys.push(serialized);
-        }
+        const serialized = this.toSerializedKey(aliases[i]);
+        if (serialized === null || seenSet.has(serialized)) continue;
+        seenSet.add(serialized);
+        serializedKeys.push(serialized);
       }
-      return { firstValidAlias, serializedKeys };
     } else {
-      const serializedKeys: string[] = [];
       for (let i = 0; i < len; i++) {
-        const key = aliases[i];
-        const serialized = this.toSerializedKey(key);
-        if (serialized === null) continue;
-        if (firstValidAlias === null) firstValidAlias = key;
-
-        if (!serializedKeys.includes(serialized)) {
-          serializedKeys.push(serialized);
-        }
+        const serialized = this.toSerializedKey(aliases[i]);
+        if (serialized === null || serializedKeys.includes(serialized)) continue;
+        serializedKeys.push(serialized);
       }
-      return { firstValidAlias, serializedKeys };
     }
+    return { firstValidAlias, serializedKeys };
   }
 
   private async serializeRefreshResult(value: unknown): Promise<string | Buffer> {
