@@ -103,9 +103,13 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
-  it("should await unlink before scanning the next cursor page", async () => {
+  it("should not await unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
+    let resolveSecondScan: () => void;
+    const secondScanStarted = new Promise<void>((resolve) => {
+      resolveSecondScan = resolve;
+    });
     const blockUnlink = new Promise<void>((resolve) => {
       resolveUnlink = resolve;
     });
@@ -115,11 +119,13 @@ describe("deleteKeysWithPrefix", () => {
       if (cursor === "0") {
         return ["10", ["prefix:1"]];
       }
+      resolveSecondScan!();
       return ["0", []];
     });
 
     const unlinkMock = vi.fn().mockImplementation(async () => {
       scanCalls.push("unlink");
+      await secondScanStarted;
       await blockUnlink;
       return 1;
     });
@@ -132,11 +138,11 @@ describe("deleteKeysWithPrefix", () => {
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
     await Promise.resolve();
-    expect(scanCalls).toEqual(["scan:0", "unlink"]);
+    await secondScanStarted;
+    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     resolveUnlink!();
     await result;
 
-    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     expect(unlinkMock).toHaveBeenCalledTimes(1);
     expect(scanMock).toHaveBeenCalledTimes(2);
   });

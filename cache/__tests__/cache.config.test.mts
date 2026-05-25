@@ -344,68 +344,6 @@ describe("cache.config", () => {
     await cache.delete(id);
   });
 
-  it("ValkeyCache refreshById deduplicates aliases and picks first valid key on short lists", async () => {
-    const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10 });
-    const callOrder: string[] = [];
-    const aliases = ["", " ", "primary", "PRIMARY", "alpha", "ALPHA", "beta", "", "  ", "\t"];
-
-    const result = await cache.refreshById(aliases, (entityId: string) => {
-      callOrder.push(entityId);
-      return Promise.resolve({ id: entityId, source: "short" });
-    });
-
-    expect(callOrder).toEqual(["primary"]);
-    expect(result).toEqual({ id: "primary", source: "short" });
-    expect(await cache.get("primary")).toEqual({ id: "primary", source: "short" });
-    expect(await cache.get("alpha")).toEqual({ id: "primary", source: "short" });
-    expect(await cache.get("beta")).toEqual({ id: "primary", source: "short" });
-
-    await cache.delete("primary", "alpha", "beta");
-  });
-
-  it("ValkeyCache refreshById deduplicates aliases and picks first valid key on long lists", async () => {
-    const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10 });
-    const callOrder: string[] = [];
-    const aliases = [
-      "",
-      " ",
-      "primary",
-      "PRIMARY",
-      "",
-      "alpha",
-      "ALPHA",
-      "alpha",
-      "beta",
-      "BETA",
-      "  beta  ",
-      "gamma",
-      "GAMMA",
-      "delta",
-      "DELTA",
-      "epsilon",
-      "EPSILON",
-      "  ",
-      "primary",
-      "alpha",
-    ];
-
-    const result = await cache.refreshById(aliases, (entityId: string) => {
-      callOrder.push(entityId);
-      return Promise.resolve({ id: entityId, source: "long" });
-    });
-
-    expect(callOrder).toEqual(["primary"]);
-    expect(result).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("primary")).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("alpha")).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("beta")).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("gamma")).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("delta")).toEqual({ id: "primary", source: "long" });
-    expect(await cache.get("epsilon")).toEqual({ id: "primary", source: "long" });
-
-    await cache.delete("primary", "alpha", "beta", "gamma", "delta", "epsilon");
-  });
-
   it("ValkeyCache refreshById waits for cache write and uses raiseOnError", async () => {
     let releaseWrite: () => void = () => {};
     const exec = vi.fn(

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { deleteKeysWithPrefix } from "./delete.mts";
 import { emitValkeyEvent } from "./events.mts";
 import { normalizeCountResult } from "./utils.mts";
-import { handleValkeyError, RateLimiterConfigurationError } from "./errors.mts";
+import { handleValkeyError } from "./errors.mts";
 
 const NAMESPACE = "rate-limiter";
 
@@ -22,29 +22,17 @@ export class RateLimiter {
   private client: GlideClient;
 
   constructor({ prefix, ttlSeconds, client = rateLimiterValkeyClient }: RateLimiterOptions) {
-    if (!prefix?.trim()) throw new RateLimiterConfigurationError("prefix is required");
-    if (!(ttlSeconds > 0 && Number.isFinite(ttlSeconds)))
-      throw new RateLimiterConfigurationError("ttlSeconds must be greater than 0");
+    if (!prefix) throw new Error("RateLimiter requires a prefix");
+    if (!(ttlSeconds > 0)) throw new Error("RateLimiter: ttlSeconds must be greater than 0");
     this.prefix = prefix;
     this.ttl = ttlSeconds;
     this.client = client;
   }
 
   async add(ids: string[]) {
-    // ⚡ Bolt Optimization:
-    // What: Replace .filter().map() chain with a single indexed loop.
-    // Why: Avoids creating intermediate arrays and iterator overhead in a hot path.
-    // Impact: Reduces GC pressure and improves throughput.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return;
+    const keys = filteredIds.map((id) => this.getKey(id));
     // Single script call for all keys (server time is used in script)
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
@@ -76,20 +64,9 @@ export class RateLimiter {
     threshold: number,
     ttlSeconds = this.ttl,
   ): Promise<{ counts: number[]; limited: boolean }> {
-    // ⚡ Bolt Optimization:
-    // What: Replace .filter().map() chain with a single indexed loop.
-    // Why: Avoids creating intermediate arrays and iterator overhead in a hot path.
-    // Impact: Reduces GC pressure and improves throughput.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return { counts: [], limited: false };
+    const keys = filteredIds.map((id) => this.getKey(id));
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
@@ -138,20 +115,9 @@ export class RateLimiter {
    * Falsy ids are silently filtered; returned counts align to filtered ids, not the input array.
    */
   async get(ids: string[], ttlSeconds = this.ttl): Promise<number[]> {
-    // ⚡ Bolt Optimization:
-    // What: Replace .filter().map() chain with a single indexed loop.
-    // Why: Avoids creating intermediate arrays and iterator overhead in a hot path.
-    // Impact: Reduces GC pressure and improves throughput.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return [];
+    const keys = filteredIds.map((id) => this.getKey(id));
     // Single read-only script call for all keys (server time is used in script)
     // Rate limiter checks need primary reads to avoid replica lag causing stale counts.
     const results = await this.client.invokeScript(rateLimiterGetScript, {
@@ -167,20 +133,9 @@ export class RateLimiter {
 
   async delete(...ids: string[]) {
     if (ids.length === 0) return 0;
-    // ⚡ Bolt Optimization:
-    // What: Replace .filter().map() chain with a single indexed loop.
-    // Why: Avoids creating intermediate arrays and iterator overhead in a hot path.
-    // Impact: Reduces GC pressure and improves throughput.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const filteredIds = ids.filter(Boolean);
     if (filteredIds.length === 0) return 0;
+    const keys = filteredIds.map((id) => this.getKey(id));
     const count = await this.client.unlink(keys);
     emitValkeyEvent("rate-limiter:delete", { prefix: this.prefix, ids: filteredIds });
     return count;
