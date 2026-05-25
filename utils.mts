@@ -30,3 +30,17 @@ export function normalizeCountResult(result: unknown): number {
   if (typeof result === "bigint") return Number(result);
   return 0;
 }
+
+/**
+ * Validates that a prefix is provided and ttlSeconds is greater than 0.
+ * Throws an error with the component name if validation fails.
+ */
+export function validatePrefixAndTtl(
+  prefix: string,
+  ttlSeconds: number,
+  componentName: string,
+): void {
+  if (!prefix?.trim()) throw new Error(`${componentName} requires a prefix`);
+  if (!(ttlSeconds > 0 && Number.isFinite(ttlSeconds)))
+    throw new Error(`${componentName}: ttlSeconds must be greater than 0`);
+}

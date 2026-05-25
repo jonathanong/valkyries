@@ -10,7 +10,13 @@ describe("rate-limiter.generated", () => {
     expect(() => new RateLimiter({ prefix: "", ttlSeconds: 10 })).toThrow(
       "RateLimiter requires a prefix",
     );
+    expect(() => new RateLimiter({ prefix: " ", ttlSeconds: 10 })).toThrow(
+      "RateLimiter requires a prefix",
+    );
     expect(() => new RateLimiter({ prefix: "test", ttlSeconds: 0 })).toThrow(
+      "RateLimiter: ttlSeconds must be greater than 0",
+    );
+    expect(() => new RateLimiter({ prefix: "test", ttlSeconds: Number.POSITIVE_INFINITY })).toThrow(
       "RateLimiter: ttlSeconds must be greater than 0",
     );
   });
