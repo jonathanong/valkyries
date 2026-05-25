@@ -106,6 +106,10 @@ describe("deleteKeysWithPrefix", () => {
   it("should not await unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
+    let resolveSecondScan: () => void;
+    const secondScanStarted = new Promise<void>((resolve) => {
+      resolveSecondScan = resolve;
+    });
     const blockUnlink = new Promise<void>((resolve) => {
       resolveUnlink = resolve;
     });
@@ -115,11 +119,13 @@ describe("deleteKeysWithPrefix", () => {
       if (cursor === "0") {
         return ["10", ["prefix:1"]];
       }
+      resolveSecondScan!();
       return ["0", []];
     });
 
     const unlinkMock = vi.fn().mockImplementation(async () => {
       scanCalls.push("unlink");
+      await secondScanStarted;
       await blockUnlink;
       return 1;
     });
@@ -131,11 +137,8 @@ describe("deleteKeysWithPrefix", () => {
 
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
-    // The event loop will process both scan(0) and scan(10) because unlink doesn't block them.
-    // Allow macro task queue to settle.
-    await new Promise((r) => setTimeout(r, 10));
-
-    // We expect scan:0, then unlink starts, then scan:10 is called, without waiting for blockUnlink
+    await Promise.resolve();
+    await secondScanStarted;
     expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     resolveUnlink!();
     await result;
