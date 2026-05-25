@@ -1,24 +1,78 @@
 import { RateLimiter } from "../../rate-limiter.mts";
 import { rateLimiterValkeyClient } from "../../clients.mts";
 import { valkeyEvents } from "../../events.mts";
+import { RateLimiterConfigurationError } from "../../errors.mts";
 import { it, expect, describe, vi } from "vitest";
 import assert from "node:assert";
 import type { GlideClient } from "@valkey/valkey-glide";
 
 describe("rate-limiter.generated", () => {
   it("RateLimiter validates prefix and ttl", () => {
-    expect(() => new RateLimiter({ prefix: "", ttlSeconds: 10 })).toThrow(
-      "RateLimiter requires a prefix",
+    expect.assertions(8);
+
+    let emptyPrefixError: unknown;
+    try {
+      new RateLimiter({ prefix: "", ttlSeconds: 10 });
+    } catch (error) {
+      emptyPrefixError = error;
+    }
+    expect(emptyPrefixError).toBeInstanceOf(RateLimiterConfigurationError);
+    expect((emptyPrefixError as RateLimiterConfigurationError).message).toBe("prefix is required");
+
+    let whitespacePrefixError: unknown;
+    try {
+      new RateLimiter({ prefix: " ", ttlSeconds: 10 });
+    } catch (error) {
+      whitespacePrefixError = error;
+    }
+    expect(whitespacePrefixError).toBeInstanceOf(RateLimiterConfigurationError);
+    expect((whitespacePrefixError as RateLimiterConfigurationError).message).toBe(
+      "prefix is required",
     );
-    expect(() => new RateLimiter({ prefix: " ", ttlSeconds: 10 })).toThrow(
-      "RateLimiter requires a prefix",
+
+    let ttlSecondsError: unknown;
+    try {
+      new RateLimiter({ prefix: "test", ttlSeconds: 0 });
+    } catch (error) {
+      ttlSecondsError = error;
+    }
+    expect(ttlSecondsError).toBeInstanceOf(RateLimiterConfigurationError);
+    expect((ttlSecondsError as RateLimiterConfigurationError).message).toBe(
+      "ttlSeconds must be greater than 0",
     );
-    expect(() => new RateLimiter({ prefix: "test", ttlSeconds: 0 })).toThrow(
-      "RateLimiter: ttlSeconds must be greater than 0",
+
+    let infiniteTtlError: unknown;
+    try {
+      new RateLimiter({ prefix: "test", ttlSeconds: Number.POSITIVE_INFINITY });
+    } catch (error) {
+      infiniteTtlError = error;
+    }
+    expect(infiniteTtlError).toBeInstanceOf(RateLimiterConfigurationError);
+    expect((infiniteTtlError as RateLimiterConfigurationError).message).toBe(
+      "ttlSeconds must be greater than 0",
     );
-    expect(() => new RateLimiter({ prefix: "test", ttlSeconds: Number.POSITIVE_INFINITY })).toThrow(
-      "RateLimiter: ttlSeconds must be greater than 0",
-    );
+  });
+
+  it("RateLimiterConfigurationError supports ErrorOptions cause", () => {
+    const cause = new Error("root cause");
+    const error = new RateLimiterConfigurationError("prefix is required", { cause });
+
+    expect(error).toBeInstanceOf(RateLimiterConfigurationError);
+    expect(error.cause).toBe(cause);
+  });
+
+  it("RateLimiterConfigurationError handles captureStackTrace absence", () => {
+    const ErrorConstructor = Error as {
+      captureStackTrace?: (targetObject: object, constructorOpt?: Function) => void;
+    };
+    const originalCaptureStackTrace = ErrorConstructor.captureStackTrace;
+    Reflect.set(ErrorConstructor, "captureStackTrace", undefined);
+
+    try {
+      expect(() => new RateLimiterConfigurationError("missing stack trace")).not.toThrow();
+    } finally {
+      Reflect.set(ErrorConstructor, "captureStackTrace", originalCaptureStackTrace);
+    }
   });
 
   it("RateLimiter", async () => {
