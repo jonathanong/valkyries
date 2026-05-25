@@ -4,9 +4,6 @@ import type { DynamicConfigField, DynamicConfigFieldType } from "../types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 import { parseField, stringifyField } from "./fields.mts";
 
-const hasOwn = (obj: Record<string, unknown>, key: string): key is string =>
-  Object.prototype.hasOwnProperty.call(obj, key);
-
 export const dynamicConfigSetFieldsScript = registerScript(
   loadScript("dynamic-config-set-fields.lua", new URL("../", import.meta.url)),
 );
@@ -43,7 +40,7 @@ export async function applyFieldsFromMap({
   let parsedCount = 0;
 
   for (const name in fieldTypes) {
-    if (!hasOwn(fieldTypes, name)) continue;
+    if (!Object.hasOwn(fieldTypes, name)) continue;
     const type = fieldTypes[name];
     const valkeyEntry = fieldsMap[name];
     const value =
@@ -86,10 +83,7 @@ export function buildMissingDefaultWrites({
 }) {
   const toApply: [string, DynamicConfigField][] = [];
   const writeArgs: string[] = [];
-  // ⚡ Bolt: Use a `for...in` loop to avoid allocation and GC overhead.
-  for (const name in fieldTypes) {
-    if (!hasOwn(fieldTypes, name)) continue;
-    const type = fieldTypes[name];
+  for (const [name, type] of Object.entries(fieldTypes)) {
     const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null

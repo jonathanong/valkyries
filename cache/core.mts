@@ -4,7 +4,7 @@ import { emitValkeyEvent } from "../events.mts";
 import { Decoder, type GlideClient, type GlideString } from "@valkey/valkey-glide";
 import { normalizeKey } from "../key-normalization.mts";
 import { handleValkeyError } from "../errors.mts";
-import { normalizeTtlResult, validatePrefixAndTtl } from "../utils.mts";
+import { normalizeTtlResult } from "../utils.mts";
 import { decodeValue, serializeValue } from "../cache-utils.mts";
 import type { ValkeyBloomFilter } from "../bloom-filter.mts";
 import { CACHE_NAMESPACE, getValuesWithTtlScript, getValueWithTtlScript } from "./constants.mts";
@@ -38,7 +38,8 @@ export abstract class ValkeyCacheCore<K = string> {
     keySerializer,
     client = cacheValkeyClient,
   }: ValkeyCacheOptions<K>) {
-    validatePrefixAndTtl(prefix, ttlSeconds, "ValkeyCache");
+    if (!prefix) throw new Error("ValkeyCache requires a prefix");
+    if (!(ttlSeconds > 0)) throw new Error("ValkeyCache: ttlSeconds must be greater than 0");
     this.prefix = prefix;
     this.ttl = ttlSeconds;
     this.nullTtl = nullTtlSeconds ?? Math.max(1, Math.floor(ttlSeconds / 60));

@@ -5,7 +5,6 @@ import {
   glideConfigFromUrl,
   upsertValkeyClientByUrl,
 } from "../clients.mts";
-import { ValkeyUrlError } from "../errors.mts";
 
 describe("clients.generated", () => {
   it("glideConfigFromUrl parses redis:// URL", () => {
@@ -52,16 +51,7 @@ describe("clients.generated", () => {
   });
 
   it("glideConfigFromUrl throws error for invalid URL", () => {
-    let thrown: unknown;
     expect(() => glideConfigFromUrl("not-a-url")).toThrow("Invalid Valkey URL");
-    try {
-      glideConfigFromUrl("not-a-url");
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBeInstanceOf(ValkeyUrlError);
-    expect((thrown as Error).message).toBe("Invalid Valkey URL");
-    expect((thrown as ValkeyUrlError).cause).toBeInstanceOf(Error);
   });
 
   it("glideConfigFromUrl allows overriding lazy connect", () => {

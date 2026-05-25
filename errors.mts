@@ -1,10 +1,3 @@
-export class ValkeyUrlError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "ValkeyUrlError";
-  }
-}
-
 export type ValkeyErrorHandler = (error: Error) => void;
 
 /* v8 ignore next 4 -- default process-level fallback is replaced in tests and by applications. */
@@ -21,14 +14,4 @@ export function setValkeyErrorHandler(handler: ValkeyErrorHandler): void {
 export function handleValkeyError(error: unknown): void {
   const normalized = error instanceof Error ? error : new Error(String(error));
   valkeyErrorHandler(normalized);
-}
-
-export class RateLimiterConfigurationError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "RateLimiterConfigurationError";
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, RateLimiterConfigurationError);
-    }
-  }
 }

@@ -103,7 +103,7 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
-  it("should continue scanning while an unlink is in-flight", async () => {
+  it("should not await unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
     const blockUnlink = new Promise<void>((resolve) => {
@@ -131,12 +131,15 @@ describe("deleteKeysWithPrefix", () => {
 
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
-    await Promise.resolve();
-    expect(scanCalls).toEqual(["scan:0", "unlink"]);
+    // The event loop will process both scan(0) and scan(10) because unlink doesn't block them.
+    // Allow macro task queue to settle.
+    await new Promise((r) => setTimeout(r, 10));
+
+    // We expect scan:0, then unlink starts, then scan:10 is called, without waiting for blockUnlink
+    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     resolveUnlink!();
     await result;
 
-    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     expect(unlinkMock).toHaveBeenCalledTimes(1);
     expect(scanMock).toHaveBeenCalledTimes(2);
   });
