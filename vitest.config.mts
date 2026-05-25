@@ -22,6 +22,7 @@ export default defineConfig({
         "cache-utils.mts",
         "scripts.mts",
         "delete.mts",
+        "utils.mts",
       ],
       exclude: [
         "**/__tests__/**",
