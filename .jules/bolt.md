@@ -1,0 +1,4 @@
+
+## 2026-05-25 - Prevent unhandled rejections and unbounded memory in async promise arrays
+**Learning:** When collecting asynchronous background promises (like DB unlink commands) inside a loop to await them concurrently via `Promise.all()` later, two issues arise: 1. If the loop throws an exception before `Promise.all()` is reached, any rejected promises in the array will cause an `UnhandledPromiseRejectionWarning` (which crashes modern Node.js apps). 2. For massive data sets, an unbounded array of promises can lead to memory exhaustion and overwhelming concurrent connection limits.
+**Action:** When gathering promises for concurrent execution, attach a dummy `.catch(() => {})` handler immediately when the promise is created to prevent unhandled rejection crashes. Also, add logic to await and clear the promise array when it reaches a reasonable batch size limit (e.g., 100) to cap memory and concurrency.
