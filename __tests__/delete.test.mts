@@ -9,9 +9,7 @@ describe("deleteKeysWithPrefix", () => {
   });
 
   it("should match keys by prefix and delete them", async () => {
-    const scanMock = vi
-      .fn()
-      .mockResolvedValueOnce(["0", ["prefix:key1", "prefix:key2"]]);
+    const scanMock = vi.fn().mockResolvedValueOnce(["0", ["prefix:key1", "prefix:key2"]]);
     const unlinkMock = vi.fn().mockResolvedValueOnce(2);
 
     const client = {
