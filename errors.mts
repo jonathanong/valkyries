@@ -1,3 +1,10 @@
+export class ValkeyUrlError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ValkeyUrlError";
+  }
+}
+
 export type ValkeyErrorHandler = (error: Error) => void;
 
 /* v8 ignore next 4 -- default process-level fallback is replaced in tests and by applications. */
