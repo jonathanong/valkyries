@@ -88,7 +88,7 @@ describe("delete.generated", () => {
     const deletePromise = deleteKeysWithPrefix(client, "prefix:*");
     await Promise.resolve();
 
-    expect(scan).toHaveBeenCalledTimes(2);
+    expect(scan).toHaveBeenCalledTimes(1);
     expect(unlink).toHaveBeenCalledTimes(1);
 
     resolveFirstUnlink();

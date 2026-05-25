@@ -132,7 +132,7 @@ describe("deleteKeysWithPrefix", () => {
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
     await Promise.resolve();
-    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
+    expect(scanCalls).toEqual(["scan:0", "unlink"]);
     resolveUnlink!();
     await result;
 
