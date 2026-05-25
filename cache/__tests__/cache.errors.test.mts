@@ -1,5 +1,5 @@
 import { ValkeyCache } from "../../cache.mts";
-import { decodeValue, ValkeyCacheTypeError } from "../../cache-utils.mts";
+import { decodeValue, serializeValue, ValkeyCacheTypeError } from "../../cache-utils.mts";
 import { it, expect, describe } from "vitest";
 import { cacheValkeyClient } from "../../clients.mts";
 
@@ -72,5 +72,10 @@ describe("cache.errors", () => {
     await expect(decodeValue("plain-string" as unknown as Buffer, "json")).rejects.toThrow(
       ValkeyCacheTypeError,
     );
+  });
+
+  it("serializeValue throws ValkeyCacheTypeError when text mode value is not a string", async () => {
+    await expect(serializeValue(123, "text")).rejects.toThrow(ValkeyCacheTypeError);
+    await expect(serializeValue(123, "text")).rejects.toThrow("text mode requires a string value");
   });
 });
