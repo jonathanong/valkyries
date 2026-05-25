@@ -4,7 +4,11 @@ export function validateFieldTypes(
   fieldTypes: Record<string, DynamicConfigFieldType>,
   defaultFields: Record<string, DynamicConfigField>,
 ) {
-  for (const [name, type] of Object.entries(fieldTypes)) {
+  // ⚡ Bolt: Optimize object property iteration by using a standard `for...in` loop instead of `Object.entries`.
+  // This avoids intermediate array/tuple allocations overhead.
+  for (const name in fieldTypes) {
+    if (!Object.hasOwn(fieldTypes, name)) continue;
+    const type = fieldTypes[name];
     if (!(name in defaultFields)) throw new Error(`Default field ${name} is not defined`);
     const defaultValue = defaultFields[name];
     if (type === "string" && typeof defaultValue !== "string") {

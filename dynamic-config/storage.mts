@@ -83,7 +83,11 @@ export function buildMissingDefaultWrites({
 }) {
   const toApply: [string, DynamicConfigField][] = [];
   const writeArgs: string[] = [];
-  for (const [name, type] of Object.entries(fieldTypes)) {
+  // ⚡ Bolt: Optimize object property iteration by using a standard `for...in` loop instead of `Object.entries`.
+  // This avoids massive intermediate array/tuple allocations and garbage collection overhead in this critical initialization hotpath.
+  for (const name in fieldTypes) {
+    if (!Object.hasOwn(fieldTypes, name)) continue;
+    const type = fieldTypes[name];
     const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null
