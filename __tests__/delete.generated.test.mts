@@ -82,10 +82,7 @@ describe("delete.generated", () => {
       .fn()
       .mockResolvedValueOnce(["1", ["prefix:a"]])
       .mockResolvedValueOnce(["0", ["prefix:b"]]);
-    const unlink = vi
-      .fn()
-      .mockResolvedValueOnce(firstUnlink)
-      .mockResolvedValueOnce(1);
+    const unlink = vi.fn().mockResolvedValueOnce(firstUnlink).mockResolvedValueOnce(1);
     const client = { scan, unlink } as unknown as GlideClient;
 
     const deletePromise = deleteKeysWithPrefix(client, "prefix:*");
