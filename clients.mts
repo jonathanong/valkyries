@@ -118,7 +118,7 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       lazyConnect: options?.lazyConnect ?? true,
     };
   } catch (cause) {
-    throw new ValkeyUrlError(`Invalid Valkey URL: ${url}`, { cause });
+    throw new ValkeyUrlError("Invalid Valkey URL", { cause });
   }
 }
 
