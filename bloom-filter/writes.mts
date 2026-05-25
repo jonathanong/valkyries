@@ -41,32 +41,7 @@ export async function addStream(
     // potentially throwing, ensuring no "late" writes happen after the method returns.
     const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
     for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-      const slice = chunks.slice(i, i + concurrencyLimit);
-      const settled = await Promise.allSettled(
-        slice.map((chunk) =>
-          state.client.invokeScript(bloomFilterAddScript, {
-            keys: [state.liveKey, state.buildingKey],
-            args: chunk,
-          }),
-        ),
-      );
-
-      for (let j = 0; j < settled.length; j++) {
-        const res = settled[j];
-        if (res.status === "fulfilled") {
-          results[i + j] = res.value;
-        } else if (firstError === undefined) {
-          firstError = res.reason;
-        }
-      }
-
-      // Emit events for this concurrent slice in order before moving to the next slice
-      // or throwing an error, maintaining sequential event ordering for consumers.
-      for (let j = 0; j < settled.length; j++) {
-        if (wroteFilter(results[i + j])) {
-          emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
-        }
-      }
+      firstError = await processChunkSlice(state, chunks, i, concurrencyLimit, results, firstError);
 
       if (firstError !== undefined) break;
     }
@@ -75,6 +50,44 @@ export async function addStream(
       throw firstError;
     }
   }
+}
+
+async function processChunkSlice(
+  state: BloomFilterState,
+  chunks: string[][],
+  startIndex: number,
+  concurrencyLimit: number,
+  results: unknown[],
+  firstError: any,
+): Promise<any> {
+  const slice = chunks.slice(startIndex, startIndex + concurrencyLimit);
+  const settled = await Promise.allSettled(
+    slice.map((chunk) =>
+      state.client.invokeScript(bloomFilterAddScript, {
+        keys: [state.liveKey, state.buildingKey],
+        args: chunk,
+      }),
+    ),
+  );
+
+  for (let j = 0; j < settled.length; j++) {
+    const res = settled[j];
+    if (res.status === "fulfilled") {
+      results[startIndex + j] = res.value;
+    } else if (firstError === undefined) {
+      firstError = res.reason;
+    }
+  }
+
+  // Emit events for this concurrent slice in order before moving to the next slice
+  // or throwing an error, maintaining sequential event ordering for consumers.
+  for (let j = 0; j < settled.length; j++) {
+    if (wroteFilter(results[startIndex + j])) {
+      emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
+    }
+  }
+
+  return firstError;
 }
 
 function addCommands(state: BloomFilterState, items: string[]): Promise<unknown>[] {
