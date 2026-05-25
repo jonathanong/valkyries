@@ -22,7 +22,7 @@ export class RateLimiter {
   private client: GlideClient;
 
   constructor({ prefix, ttlSeconds, client = rateLimiterValkeyClient }: RateLimiterOptions) {
-    if (!prefix) throw new RateLimiterConfigurationError("prefix is required");
+    if (!prefix?.trim()) throw new RateLimiterConfigurationError("prefix is required");
     if (!(ttlSeconds > 0 && Number.isFinite(ttlSeconds)))
       throw new RateLimiterConfigurationError("ttlSeconds must be greater than 0");
     this.prefix = prefix;

@@ -24,8 +24,11 @@ export function handleValkeyError(error: unknown): void {
 }
 
 export class RateLimiterConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "RateLimiterConfigurationError";
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, RateLimiterConfigurationError);
+    }
   }
 }
