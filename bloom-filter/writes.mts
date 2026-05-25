@@ -41,7 +41,7 @@ export async function addStream(
     // potentially throwing, ensuring no "late" writes happen after the method returns.
     const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
     for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-      firstError = await processChunkSlice(state, chunks, i, concurrencyLimit, results, firstError);
+      firstError = await processChunkSlice(state, chunks, i, concurrencyLimit, results);
 
       if (firstError !== undefined) break;
     }
@@ -58,9 +58,9 @@ async function processChunkSlice(
   startIndex: number,
   concurrencyLimit: number,
   results: unknown[],
-  firstError: any,
-): Promise<any> {
+): Promise<unknown | undefined> {
   const slice = chunks.slice(startIndex, startIndex + concurrencyLimit);
+  let firstError: unknown | undefined;
   const settled = await Promise.allSettled(
     slice.map((chunk) =>
       state.client.invokeScript(bloomFilterAddScript, {
