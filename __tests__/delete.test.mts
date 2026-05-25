@@ -103,7 +103,7 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
-  it("should await unlink before scanning the next cursor page", async () => {
+  it("should continue scanning while an unlink is in-flight", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
     const blockUnlink = new Promise<void>((resolve) => {
@@ -132,7 +132,7 @@ describe("deleteKeysWithPrefix", () => {
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
     await Promise.resolve();
-    expect(scanCalls).toEqual(["scan:0", "unlink"]);
+    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     resolveUnlink!();
     await result;
 
