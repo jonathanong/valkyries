@@ -1,7 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { durationInMilliseconds } from "../cache-utils.mts";
 
 describe("cache-utils", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("durationInMilliseconds", () => {
     it("should calculate duration correctly", () => {
       // 5_000_000 nanoseconds = 5 milliseconds
@@ -13,8 +17,6 @@ describe("cache-utils", () => {
       const duration = durationInMilliseconds(start);
 
       expect(duration).toBe(5);
-
-      vi.restoreAllMocks();
     });
 
     it("should handle zero duration", () => {
@@ -26,8 +28,6 @@ describe("cache-utils", () => {
       const duration = durationInMilliseconds(start);
 
       expect(duration).toBe(0);
-
-      vi.restoreAllMocks();
     });
   });
 });
