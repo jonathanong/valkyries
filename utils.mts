@@ -40,6 +40,7 @@ export function validatePrefixAndTtl(
   ttlSeconds: number,
   componentName: string,
 ): void {
-  if (!prefix) throw new Error(`${componentName} requires a prefix`);
-  if (!(ttlSeconds > 0)) throw new Error(`${componentName}: ttlSeconds must be greater than 0`);
+  if (!prefix?.trim()) throw new Error(`${componentName} requires a prefix`);
+  if (!(ttlSeconds > 0 && Number.isFinite(ttlSeconds)))
+    throw new Error(`${componentName}: ttlSeconds must be greater than 0`);
 }

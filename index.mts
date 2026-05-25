@@ -6,7 +6,6 @@ export * from "./dynamic-config.mts";
 export * from "./clients.mts";
 export * from "./shutdown.mts";
 export * from "./scripts.mts";
-export * from "./utils.mts";
 export * from "./errors.mts";
 export * from "./key-normalization.mts";
 export * from "./cache-metrics.mts";
