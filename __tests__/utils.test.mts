@@ -14,7 +14,6 @@ describe("validatePrefixAndTtl", () => {
     }).toThrow("Component: ttlSeconds must be greater than 0");
   });
 });
-
 describe("normalizeTtlResult", () => {
   it("should handle positive numbers by converting milliseconds to seconds", () => {
     expect(normalizeTtlResult(5000)).toBe(5);
