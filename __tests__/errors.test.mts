@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { setValkeyErrorHandler, handleValkeyError, type ValkeyErrorHandler } from "../errors.mts";
+import { setValkeyErrorHandler, handleValkeyError } from "../errors.mts";
 
 describe("errors.mts", () => {
-  let defaultHandler: ValkeyErrorHandler | undefined;
-
   // Since errors.mts exports these but the default handler is private to the module,
   // we can only reset it by keeping a dummy or re-setting it to a no-op if we don't have access.
   // Actually, we can just replace the handler and verify it.
