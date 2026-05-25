@@ -34,7 +34,7 @@ export async function rebuildFromStream(
       // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
       const chunks = Array.from(chunkItems(batch, state.batchSize));
       const results: boolean[] = Array.from({ length: chunks.length }, () => false);
-      let firstError: any;
+      let firstError: unknown;
 
       // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
       // We must also wait for all in-flight commands in a concurrent set to settle before
