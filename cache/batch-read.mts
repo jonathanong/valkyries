@@ -157,9 +157,12 @@ function mergeFetchedResults<T>(
   missingIndices: number[],
   fetchedResults: Array<T | null | undefined>,
 ): Array<T | null> {
-  const results: Array<T | null> = [...cachedValues];
+  // ⚡ Bolt Optimization:
+  // What: Mutate the intermediate cachedValues array in place.
+  // Why: Avoids O(N) array cloning and garbage collection overhead in batch reads.
+  // Impact: Improves throughput and reduces memory pressure for large batch operations.
   for (let i = 0; i < missingIndices.length; i++) {
-    results[missingIndices[i]] = fetchedResults[i] ?? null;
+    cachedValues[missingIndices[i]] = fetchedResults[i] ?? null;
   }
-  return results;
+  return cachedValues;
 }
