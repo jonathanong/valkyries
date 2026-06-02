@@ -30,11 +30,17 @@ Default clients are created at module load:
 type ValkeyClientOptions = {
   readFrom?: "primary" | "preferReplica";
   lazyConnect?: boolean;
+  inflightRequestsLimit?: number;
+  requestTimeout?: number;
 };
 ```
 
-- `readFrom`: Glide read preference.
-- `lazyConnect`: whether Glide should connect lazily. Defaults to `true`.
+| Option                  | Default         | Env var                          | Description                                                 |
+| ----------------------- | --------------- | -------------------------------- | ----------------------------------------------------------- |
+| `readFrom`              | (Glide default) | —                                | Read preference: `"primary"` or `"preferReplica"`.          |
+| `lazyConnect`           | `true`          | —                                | Whether Glide connects lazily on first command.             |
+| `inflightRequestsLimit` | `1000`          | `VALKEY_INFLIGHT_REQUESTS_LIMIT` | Maximum number of concurrent in-flight requests per client. |
+| `requestTimeout`        | `500`           | `VALKEY_REQUEST_TIMEOUT_MS`      | Per-request timeout in milliseconds.                        |
 
 ## `urlsToClients`
 
@@ -42,7 +48,7 @@ type ValkeyClientOptions = {
 const urlsToClients: Map<string, GlideClient>;
 ```
 
-Registry of package-managed clients keyed by URL, read preference, and lazy-connect setting.
+Registry of package-managed clients keyed by URL, read preference, lazy-connect, inflight-requests limit, and request timeout.
 
 ## `upsertValkeyClientByUrl(url, options?)`
 

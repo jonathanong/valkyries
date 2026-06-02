@@ -22,6 +22,13 @@ VALKEY_RATE_LIMITER_URL=redis://localhost:6379
 VALKEY_DYNAMIC_CONFIG_URL=redis://localhost:6379
 ```
 
+Connection tuning (applies to all package-managed clients):
+
+```sh
+VALKEY_INFLIGHT_REQUESTS_LIMIT=1000  # max concurrent in-flight requests per client (default: 1000)
+VALKEY_REQUEST_TIMEOUT_MS=500        # per-request timeout in milliseconds (default: 500)
+```
+
 Bloom filters require Valkey with the Bloom module. For local development and CI, use Valkey Bundle:
 
 ```sh
