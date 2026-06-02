@@ -39,8 +39,11 @@ export async function applyFieldsFromMap({
 }): Promise<void> {
   let parsedCount = 0;
 
-  for (const name in fieldTypes) {
-    if (!Object.hasOwn(fieldTypes, name)) continue;
+  // ⚡ Bolt Optimization:
+  // What: Use Object.keys instead of for...in.
+  // Why: Aligns with V8 best practices for fast iteration and avoids Object.hasOwn checks on every iteration.
+  // Impact: Lower CPU usage and faster object parsing, avoiding SonarCloud code smell rules.
+  for (const name of Object.keys(fieldTypes)) {
     const type = fieldTypes[name];
     const valkeyEntry = fieldsMap[name];
     const value =
@@ -83,7 +86,12 @@ export function buildMissingDefaultWrites({
 }) {
   const toApply: [string, DynamicConfigField][] = [];
   const writeArgs: string[] = [];
-  for (const [name, type] of Object.entries(fieldTypes)) {
+  // ⚡ Bolt Optimization:
+  // What: Use Object.keys instead of Object.entries.
+  // Why: Prevents creating temporary arrays/tuples for each map entry.
+  // Impact: Lower GC pressure and faster iteration over default field configurations.
+  for (const name of Object.keys(fieldTypes)) {
+    const type = fieldTypes[name];
     const valkeyEntry = fieldsMap[name];
     const value =
       valkeyEntry?.value != null
