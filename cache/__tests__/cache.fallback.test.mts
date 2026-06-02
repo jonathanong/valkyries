@@ -10,6 +10,24 @@ function makeFailingClient(message = "Reached maximum inflight requests"): Glide
   } as unknown as GlideClient;
 }
 
+function makeSingleCache(fallbackOnReadError?: boolean) {
+  return new ValkeyCache({
+    prefix: "test-fallback",
+    ttlSeconds: 10,
+    client: makeFailingClient(),
+    fallbackOnReadError,
+  });
+}
+
+function makeBatchCache(fallbackOnReadError?: boolean) {
+  return new ValkeyCache({
+    prefix: "test-batch-fallback",
+    ttlSeconds: 10,
+    client: makeFailingClient(),
+    fallbackOnReadError,
+  });
+}
+
 describe("cache.fallback", () => {
   const capturedErrors: Error[] = [];
 
@@ -19,17 +37,12 @@ describe("cache.fallback", () => {
   });
 
   afterEach(() => {
-    // Restore the default no-op test handler
     setValkeyErrorHandler(() => {});
   });
 
   describe("cacheGetByAny (single-read)", () => {
     it("falls back to fetch fn and reports error when Valkey read throws (fallbackOnReadError: true by default)", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
+      const cache = makeSingleCache();
       let fetchCount = 0;
       const cachedFn = cache.cacheGetByAny(async (key: string) => {
         fetchCount++;
@@ -45,59 +58,29 @@ describe("cache.fallback", () => {
     });
 
     it("returns null when fetch fn returns null after a Valkey read error", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
-      const cachedFn = cache.cacheGetByAny(async (_key: string) => null);
-
-      const result = await cachedFn("missing-key");
-
-      expect(result).toBeNull();
+      const cachedFn = makeSingleCache().cacheGetByAny(async (_key: string) => null);
+      expect(await cachedFn("missing-key")).toBeNull();
       expect(capturedErrors).toHaveLength(1);
     });
 
     it("rethrows when fallbackOnReadError is false", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-        fallbackOnReadError: false,
-      });
-      const cachedFn = cache.cacheGetByAny(async () => ({ data: "should-not-reach" }));
-
+      const cachedFn = makeSingleCache(false).cacheGetByAny(async () => ({ data: "no-reach" }));
       await expect(cachedFn("key")).rejects.toThrow("Reached maximum inflight requests");
       expect(capturedErrors).toHaveLength(0);
     });
 
     it("fallbackOnReadError defaults to true on the instance", () => {
-      const cache = new ValkeyCache({
-        prefix: "test",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
-      expect(cache.fallbackOnReadError).toBe(true);
+      expect(makeSingleCache().fallbackOnReadError).toBe(true);
     });
 
     it("fallbackOnReadError: false is stored on the instance", () => {
-      const cache = new ValkeyCache({
-        prefix: "test",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-        fallbackOnReadError: false,
-      });
-      expect(cache.fallbackOnReadError).toBe(false);
+      expect(makeSingleCache(false).fallbackOnReadError).toBe(false);
     });
   });
 
   describe("cacheGetByAnyBatch (batch-read)", () => {
     it("falls back to batchFn and reports error when Valkey read throws (fallbackOnReadError: true by default)", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-batch-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
+      const cache = makeBatchCache();
       let fetchedKeys: string[] = [];
       const cachedFn = cache.cacheGetByAnyBatch(async (keys: string[]) => {
         fetchedKeys = [...keys];
@@ -113,18 +96,10 @@ describe("cache.fallback", () => {
     });
 
     it("scatters batch fallback results back to the original key positions including duplicates", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-batch-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
-      const cachedFn = cache.cacheGetByAnyBatch(async (keys: string[]) =>
+      const cachedFn = makeBatchCache().cacheGetByAnyBatch(async (keys: string[]) =>
         keys.map((k) => ({ id: k })),
       );
-
-      // Input has duplicates: 'a' appears twice
       const result = await cachedFn(["a", "b", "a"]);
-
       expect(result).toHaveLength(3);
       expect(result[0]).toEqual({ id: "a" });
       expect(result[1]).toEqual({ id: "b" });
@@ -132,27 +107,16 @@ describe("cache.fallback", () => {
     });
 
     it("maps null batchFn results to null in fallback output", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-batch-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-      });
-      const cachedFn = cache.cacheGetByAnyBatch(async (keys: string[]) => keys.map(() => null));
-
-      const result = await cachedFn(["a", "b"]);
-
-      expect(result).toEqual([null, null]);
+      const cachedFn = makeBatchCache().cacheGetByAnyBatch(async (keys: string[]) =>
+        keys.map(() => null),
+      );
+      expect(await cachedFn(["a", "b"])).toEqual([null, null]);
     });
 
     it("rethrows when fallbackOnReadError is false", async () => {
-      const cache = new ValkeyCache({
-        prefix: "test-batch-fallback",
-        ttlSeconds: 10,
-        client: makeFailingClient(),
-        fallbackOnReadError: false,
-      });
-      const cachedFn = cache.cacheGetByAnyBatch(async (keys: string[]) => keys.map(() => null));
-
+      const cachedFn = makeBatchCache(false).cacheGetByAnyBatch(async (keys: string[]) =>
+        keys.map(() => null),
+      );
       await expect(cachedFn(["key"])).rejects.toThrow("Reached maximum inflight requests");
       expect(capturedErrors).toHaveLength(0);
     });
