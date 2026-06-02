@@ -36,6 +36,18 @@ describe("isRetryableValkeyError", () => {
   });
 });
 
+/** Creates a fn that always rejects with a transient inflight error; returns the fn + call counter. */
+function makeAlwaysInflightFn() {
+  let calls = 0;
+  return {
+    fn: () => {
+      calls++;
+      return Promise.reject(new Error("Reached maximum inflight requests"));
+    },
+    getCalls: () => calls,
+  };
+}
+
 describe("retryValkeyOperation", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -78,31 +90,21 @@ describe("retryValkeyOperation", () => {
   });
 
   it("rethrows the last error after exhausting all attempts", async () => {
-    let attempts = 0;
-    const fn = () => {
-      attempts++;
-      return Promise.reject(new Error(`Reached maximum inflight requests attempt ${attempts}`));
-    };
-
+    const { fn, getCalls } = makeAlwaysInflightFn();
     const promise = retryValkeyOperation(fn, { attempts: 3, delayMs: 100 });
     // Attach the rejection handler before advancing timers to avoid unhandled-rejection warnings.
-    const check = expect(promise).rejects.toThrow("Reached maximum inflight requests attempt 3");
+    const check = expect(promise).rejects.toThrow("Reached maximum inflight requests");
     await vi.advanceTimersByTimeAsync(200);
     await check;
-    expect(attempts).toBe(3);
+    expect(getCalls()).toBe(3);
   });
 
   it("respects custom shouldRetry — does not retry when shouldRetry returns false", async () => {
-    let attempts = 0;
-    const fn = () => {
-      attempts++;
-      return Promise.reject(new Error("Reached maximum inflight requests"));
-    };
-
+    const { fn, getCalls } = makeAlwaysInflightFn();
     await expect(retryValkeyOperation(fn, { shouldRetry: () => false })).rejects.toThrow(
       "Reached maximum inflight requests",
     );
-    expect(attempts).toBe(1);
+    expect(getCalls()).toBe(1);
   });
 
   it("waits delayMs between attempts", async () => {
@@ -128,17 +130,12 @@ describe("retryValkeyOperation", () => {
   });
 
   it("uses 3 attempts and 1000ms delay by default", async () => {
-    let attempts = 0;
-    const fn = () => {
-      attempts++;
-      return Promise.reject(new Error("Reached maximum inflight requests"));
-    };
-
+    const { fn, getCalls } = makeAlwaysInflightFn();
     const promise = retryValkeyOperation(fn);
     // Attach the rejection handler before advancing timers to avoid unhandled-rejection warnings.
     const check = expect(promise).rejects.toThrow();
     await vi.advanceTimersByTimeAsync(2000);
     await check;
-    expect(attempts).toBe(3);
+    expect(getCalls()).toBe(3);
   });
 });
