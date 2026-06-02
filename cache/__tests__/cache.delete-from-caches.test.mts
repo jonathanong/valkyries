@@ -10,7 +10,7 @@ describe("ValkeyCache.deleteFromCaches", () => {
   });
 
   it("deletes entries from multiple same-client caches with one script call", async () => {
-    const key = `delete-from-caches-${Math.random().toString(36).slice(2)}`;
+    const key = "delete-from-caches-shared-key";
     const first = new ValkeyCache({ prefix: "delete-from-caches-a", ttlSeconds: 30 });
     const second = new ValkeyCache({ prefix: "delete-from-caches-b", ttlSeconds: 30 });
 
