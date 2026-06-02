@@ -1,5 +1,5 @@
 import { GlideClientConfiguration } from "@valkey/valkey-glide";
-import { it, expect, describe } from "vitest";
+import { it, expect, describe, vi, afterEach } from "vitest";
 import {
   buildDynamicConfigSubscriptionClientConfig,
   glideConfigFromUrl,
@@ -93,5 +93,43 @@ describe("clients.generated", () => {
     const client1 = await upsertValkeyClientByUrl(url1);
     const client2 = await upsertValkeyClientByUrl(url2);
     expect(client1).not.toBe(client2);
+  });
+
+  it("glideConfigFromUrl includes default inflightRequestsLimit and requestTimeout", () => {
+    const cfg = glideConfigFromUrl("redis://localhost:6379");
+    expect(cfg.inflightRequestsLimit).toBe(1000);
+    expect(cfg.requestTimeout).toBe(500);
+  });
+
+  it("glideConfigFromUrl reflects per-call inflightRequestsLimit and requestTimeout overrides", () => {
+    const cfg = glideConfigFromUrl("redis://localhost:6379", {
+      inflightRequestsLimit: 2000,
+      requestTimeout: 1000,
+    });
+    expect(cfg.inflightRequestsLimit).toBe(2000);
+    expect(cfg.requestTimeout).toBe(1000);
+  });
+
+  it("upsertValkeyClientByUrl creates separate clients for different inflightRequestsLimit", async () => {
+    const url = "redis://localhost:7382";
+    const client1 = await upsertValkeyClientByUrl(url, { inflightRequestsLimit: 500 });
+    const client2 = await upsertValkeyClientByUrl(url, { inflightRequestsLimit: 2000 });
+    expect(client1).not.toBe(client2);
+  });
+
+  describe("env-based config defaults", () => {
+    afterEach(() => {
+      delete process.env.VALKEY_INFLIGHT_REQUESTS_LIMIT;
+      delete process.env.VALKEY_REQUEST_TIMEOUT_MS;
+    });
+
+    it("config reads VALKEY_INFLIGHT_REQUESTS_LIMIT and VALKEY_REQUEST_TIMEOUT_MS from env", async () => {
+      process.env.VALKEY_INFLIGHT_REQUESTS_LIMIT = "2000";
+      process.env.VALKEY_REQUEST_TIMEOUT_MS = "750";
+      vi.resetModules();
+      const { config } = await import("../config.mts");
+      expect(config.inflight_requests_limit).toBe(2000);
+      expect(config.request_timeout_ms).toBe(750);
+    });
   });
 });

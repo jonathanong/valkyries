@@ -15,6 +15,8 @@ export type ValkeyReadFrom = "primary" | "preferReplica";
 export type ValkeyClientOptions = {
   readFrom?: ValkeyReadFrom;
   lazyConnect?: boolean;
+  inflightRequestsLimit?: number;
+  requestTimeout?: number;
 };
 
 export const urlsToClients = new Map<string, GlideClient>();
@@ -79,7 +81,9 @@ export async function upsertValkeyClientByUrl(
   options?: ValkeyClientOptions,
 ): Promise<GlideClient> {
   const effectiveLazyConnect = options?.lazyConnect ?? true;
-  const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}`;
+  const effectiveInflight = options?.inflightRequestsLimit ?? config.inflight_requests_limit;
+  const effectiveTimeout = options?.requestTimeout ?? config.request_timeout_ms;
+  const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}`;
   const existing = urlsToClients.get(cacheKey);
   if (existing) return existing;
   const inFlight = urlsToClientPromises.get(cacheKey);
@@ -116,6 +120,8 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
         : undefined,
       readFrom: options?.readFrom,
       lazyConnect: options?.lazyConnect ?? true,
+      inflightRequestsLimit: options?.inflightRequestsLimit ?? config.inflight_requests_limit,
+      requestTimeout: options?.requestTimeout ?? config.request_timeout_ms,
     };
   } catch (cause) {
     throw new Error(`Invalid Valkey URL: ${url}`, { cause });
