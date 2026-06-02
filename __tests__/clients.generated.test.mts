@@ -119,7 +119,6 @@ describe("clients.generated", () => {
 
   describe("env-based config defaults", () => {
     afterEach(() => {
-      vi.resetModules();
       delete process.env.VALKEY_INFLIGHT_REQUESTS_LIMIT;
       delete process.env.VALKEY_REQUEST_TIMEOUT_MS;
     });

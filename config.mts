@@ -12,6 +12,12 @@ export const config = {
   // used for distributed configuration
   dynamic_config_url: process.env.VALKEY_DYNAMIC_CONFIG_URL || DEFAULT_VALKEY_URL,
 
-  inflight_requests_limit: Number(process.env.VALKEY_INFLIGHT_REQUESTS_LIMIT) || 1000,
-  request_timeout_ms: Number(process.env.VALKEY_REQUEST_TIMEOUT_MS) || 500,
+  inflight_requests_limit: (() => {
+    const n = Number(process.env.VALKEY_INFLIGHT_REQUESTS_LIMIT);
+    return Number.isFinite(n) ? n : 1000;
+  })(),
+  request_timeout_ms: (() => {
+    const n = Number(process.env.VALKEY_REQUEST_TIMEOUT_MS);
+    return Number.isFinite(n) ? n : 500;
+  })(),
 };

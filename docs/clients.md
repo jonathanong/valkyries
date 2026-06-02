@@ -35,12 +35,12 @@ type ValkeyClientOptions = {
 };
 ```
 
-| Option                  | Default         | Env var                          | Description                                                 |
-| ----------------------- | --------------- | -------------------------------- | ----------------------------------------------------------- |
-| `readFrom`              | (Glide default) | —                                | Read preference: `"primary"` or `"preferReplica"`.          |
-| `lazyConnect`           | `true`          | —                                | Whether Glide connects lazily on first command.             |
-| `inflightRequestsLimit` | `1000`          | `VALKEY_INFLIGHT_REQUESTS_LIMIT` | Maximum number of concurrent in-flight requests per client. |
-| `requestTimeout`        | `500`           | `VALKEY_REQUEST_TIMEOUT_MS`      | Per-request timeout in milliseconds.                        |
+| Option                  | Default         | Env var                          | Description                                                |
+| ----------------------- | --------------- | -------------------------------- | ---------------------------------------------------------- |
+| `readFrom`              | (Glide default) | —                                | Read preference: `"primary"` or `"preferReplica"`.         |
+| `lazyConnect`           | `true`          | —                                | Whether Glide connects lazily on first command.            |
+| `inflightRequestsLimit` | `1000`          | `VALKEY_INFLIGHT_REQUESTS_LIMIT` | Maximum number of concurrent inflight requests per client. |
+| `requestTimeout`        | `500`           | `VALKEY_REQUEST_TIMEOUT_MS`      | Per-request timeout in milliseconds.                       |
 
 ## `urlsToClients`
 
