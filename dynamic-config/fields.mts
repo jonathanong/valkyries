@@ -4,6 +4,10 @@ export function validateFieldTypes(
   fieldTypes: Record<string, DynamicConfigFieldType>,
   defaultFields: Record<string, DynamicConfigField>,
 ) {
+  if (fieldTypes == null) {
+    throw new Error("Field types are required");
+  }
+
   // ⚡ Bolt Optimization:
   // What: Use Object.keys instead of Object.entries for iteration.
   // Why: Avoids O(N) array/tuple allocations and lowers GC pressure.
