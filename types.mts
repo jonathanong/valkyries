@@ -32,6 +32,13 @@ export type ValkeyCacheOptions<K = string> = {
   bloomFilterEnabled?: () => boolean;
   /** Optional Valkey client. Defaults to the package cache client. */
   client?: GlideClient;
+  /**
+   * When true (default), a Valkey read error in cacheGetByAny / cacheGetByAnyBatch is reported
+   * via handleValkeyError and the fetch function is called directly as a fallback instead of
+   * propagating the error to the caller. Set to false for caches that must not silently bypass
+   * Valkey (e.g. strongly-consistent auth caches).
+   */
+  fallbackOnReadError?: boolean;
 } & (K extends string
   ? {
       /**

@@ -10,6 +10,7 @@ export * from "./utils.mts";
 export * from "./errors.mts";
 export * from "./key-normalization.mts";
 export * from "./cache-metrics.mts";
+export * from "./retry.mts";
 export type {
   RateLimiterOptions,
   ValkeyBloomFilterOptions,

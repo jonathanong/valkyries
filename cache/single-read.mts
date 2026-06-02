@@ -14,11 +14,15 @@ export abstract class ValkeyCacheSingleRead<K = string> extends ValkeyCacheStale
       let misses = 0;
       let bloomMisses = 0;
       try {
-        const {
-          value: cached,
-          ttlSecondsRemaining,
-          bloomMiss,
-        } = await this.getValueWithTtl(serializedKey);
+        let entry: Awaited<ReturnType<typeof this.getValueWithTtl>>;
+        try {
+          entry = await this.getValueWithTtl(serializedKey);
+        } catch (error) {
+          this.handleReadError(error);
+          misses = 1;
+          return (await fn(key)) ?? null;
+        }
+        const { value: cached, ttlSecondsRemaining, bloomMiss } = entry;
         if (bloomMiss) {
           bloomMisses = 1;
           return null;

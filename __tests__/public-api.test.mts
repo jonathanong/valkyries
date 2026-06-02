@@ -13,6 +13,8 @@ describe("public api", () => {
     expect(api.DynamicConfig).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
     expect(api.closeValkeyClients).toBeTypeOf("function");
+    expect(api.isRetryableValkeyError).toBeTypeOf("function");
+    expect(api.retryValkeyOperation).toBeTypeOf("function");
   });
 
   it("normalizes keys", () => {

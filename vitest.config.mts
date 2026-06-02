@@ -21,6 +21,7 @@ export default defineConfig({
         "key-normalization.mts",
         "cache-utils.mts",
         "scripts.mts",
+        "retry.mts",
       ],
       exclude: [
         "**/__tests__/**",

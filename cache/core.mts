@@ -21,6 +21,7 @@ export abstract class ValkeyCacheCore<K = string> {
   nullTtl: number;
   mode: ValkeyCacheMode;
   staleTtlAge: number;
+  fallbackOnReadError: boolean;
   protected bloomFilter?: ValkeyBloomFilter;
   protected bloomFilterEnabled?: () => boolean;
   protected refreshPromises: Map<string, Promise<void>>;
@@ -37,6 +38,7 @@ export abstract class ValkeyCacheCore<K = string> {
     bloomFilterEnabled,
     keySerializer,
     client = cacheValkeyClient,
+    fallbackOnReadError = true,
   }: ValkeyCacheOptions<K>) {
     if (!prefix) throw new Error("ValkeyCache requires a prefix");
     if (!(ttlSeconds > 0)) throw new Error("ValkeyCache: ttlSeconds must be greater than 0");
@@ -48,12 +50,19 @@ export abstract class ValkeyCacheCore<K = string> {
       throw new Error("ValkeyCache: staleTtlAge must be between 0 and 1");
     }
     this.staleTtlAge = staleTtlAge;
+    this.fallbackOnReadError = fallbackOnReadError;
     this.bloomFilter = bloomFilter;
     this.bloomFilterEnabled = bloomFilterEnabled;
     this.refreshPromises = new Map();
     this.keySerializer =
       (keySerializer as ((key: K) => string) | undefined) ?? ((key: K) => String(key));
     this.client = client;
+  }
+
+  /** Reports a Valkey read error and rethrows when fallbackOnReadError is false. */
+  protected handleReadError(error: unknown): void {
+    if (!this.fallbackOnReadError) throw error;
+    handleValkeyError(error);
   }
 
   protected emitCacheEvents(hitKeys: string[], missKeys: string[], bloomMissKeys: string[]) {

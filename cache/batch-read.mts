@@ -31,7 +31,17 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
       const stats = new BatchReadStats();
       const start = process.hrtime.bigint();
       try {
-        const cachedEntries = await this.getValuesWithTtl(serializedKeys);
+        let cachedEntries: Awaited<ReturnType<typeof this.getValuesWithTtl>>;
+        try {
+          cachedEntries = await this.getValuesWithTtl(serializedKeys);
+        } catch (error) {
+          this.handleReadError(error);
+          stats.misses = normalizedKeys.length;
+          stats.missKeys = serializedKeys;
+          const fallbackResults = await batchFn(normalizedKeys);
+          assertBatchResultLength(fallbackResults, normalizedKeys.length);
+          return scatter(Array.from(fallbackResults, (v) => v ?? null));
+        }
         const cachedValues = cachedEntries.map((entry) => entry.value as T | null);
         const missing = collectMissingKeys(
           cachedEntries,
