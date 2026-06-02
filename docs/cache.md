@@ -164,6 +164,25 @@ cache.delete(...keys: K[]): Promise<number>
 
 Deletes cache entries and writes short-lived invalidation markers so in-flight read-through writes do not repopulate stale data.
 
+## `ValkeyCache.deleteFromCaches(entries)`
+
+```ts
+ValkeyCache.deleteFromCaches([
+  { cache: usersPrivateCache, keys: userKeys },
+  { cache: usersPublicCache, keys: userKeys },
+]): Promise<number>
+```
+
+Deletes entries from multiple cache instances while preserving the same invalidation-marker protection as `delete(...keys)`.
+
+Behavior:
+
+- Invalid keys are filtered through each cache instance's serializer.
+- Entries sharing the same Valkey client are deleted with one script call.
+- Entries using different clients are grouped by client.
+- `cache:delete` events are emitted per cache prefix.
+- The returned count is the sum of deleted cache keys.
+
 ## `invalidateCacheGetByAny(...keys)`
 
 ```ts

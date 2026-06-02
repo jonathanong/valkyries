@@ -9,6 +9,7 @@ import { normalizeKey } from "../key-normalization.mts";
 describe("public api", () => {
   it("exports the package surface", () => {
     expect(api.ValkeyCache).toBeTypeOf("function");
+    expect(Reflect.get(api.ValkeyCache, "deleteFromCaches")).toBeTypeOf("function");
     expect(api.ValkeyBloomFilter).toBeTypeOf("function");
     expect(api.DynamicConfig).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
