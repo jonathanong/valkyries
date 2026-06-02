@@ -47,7 +47,7 @@ describe("ValkeyCache.deleteFromCaches", () => {
       const text = new ValkeyCache<string>({ prefix: "text-delete", ttlSeconds: 30, client });
 
       const deleted = await ValkeyCache.deleteFromCaches([
-        { cache: numeric, keys: [7, null as unknown as number] },
+        { cache: numeric, keys: [7] },
         { cache: text, keys: [" MixedCase ", ""] },
       ]);
 

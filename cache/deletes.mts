@@ -81,8 +81,8 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     const groups = new Map<GlideClient, SerializedDeleteEntry[]>();
     for (const entry of entries) {
       const serializedKeys: string[] = [];
-      for (let i = 0; i < entry.keys.length; i++) {
-        const serialized = entry.cache.toSerializedKey(entry.keys[i]);
+      for (const key of entry.keys) {
+        const serialized = entry.cache.toSerializedKey(key);
         if (serialized !== null) serializedKeys.push(serialized);
       }
       if (serializedKeys.length === 0) continue;
@@ -121,8 +121,7 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     const cacheKeys: string[] = [];
     const invalidationKeys: string[] = [];
     for (const entry of entries) {
-      for (let i = 0; i < entry.serializedKeys.length; i++) {
-        const serializedKey = entry.serializedKeys[i];
+      for (const serializedKey of entry.serializedKeys) {
         cacheKeys.push(entry.cache.getSerializedCacheKey(serializedKey));
         invalidationKeys.push(entry.cache.getSerializedInvalidationKey(serializedKey));
       }
