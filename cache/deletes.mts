@@ -1,4 +1,5 @@
 import type { GlideClient } from "@valkey/valkey-glide";
+import type { ValkeyCache } from "../cache.mts";
 import { cacheValkeyClient } from "../clients.mts";
 import { emitValkeyEvent } from "../events.mts";
 import { deleteKeysWithPrefix } from "../delete.mts";
@@ -11,8 +12,13 @@ import {
 import { ValkeyCacheMutations } from "./mutations.mts";
 
 export type ValkeyCacheDeleteFromCachesEntry<K = any> = {
-  cache: ValkeyCacheDeletes<K>;
+  cache: ValkeyCache<K>;
   keys: readonly K[];
+};
+
+type ValkeyCacheDeleteFromCachesEntryImplementation = {
+  cache: ValkeyCacheDeletes<any>;
+  keys: readonly any[];
 };
 
 type SerializedDeleteEntry = {
@@ -75,8 +81,14 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     return ValkeyCacheDeletes.invalidate(this.prefix, this.client);
   }
 
+  static async deleteFromCaches<K>(
+    entries: readonly ValkeyCacheDeleteFromCachesEntry<K>[],
+  ): Promise<number>;
   static async deleteFromCaches(
-    entries: readonly ValkeyCacheDeleteFromCachesEntry[],
+    entries: readonly ValkeyCacheDeleteFromCachesEntry<any>[],
+  ): Promise<number>;
+  static async deleteFromCaches(
+    entries: readonly ValkeyCacheDeleteFromCachesEntryImplementation[],
   ): Promise<number> {
     const groups = new Map<GlideClient, SerializedDeleteEntry[]>();
     for (const entry of entries) {
