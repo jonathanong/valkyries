@@ -18,8 +18,7 @@ export abstract class ValkeyCacheSingleRead<K = string> extends ValkeyCacheStale
         try {
           entry = await this.getValueWithTtl(serializedKey);
         } catch (error) {
-          if (!this.fallbackOnReadError) throw error;
-          handleValkeyError(error);
+          this.handleReadError(error);
           misses = 1;
           return (await fn(key)) ?? null;
         }

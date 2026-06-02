@@ -59,6 +59,12 @@ export abstract class ValkeyCacheCore<K = string> {
     this.client = client;
   }
 
+  /** Reports a Valkey read error and rethrows when fallbackOnReadError is false. */
+  protected handleReadError(error: unknown): void {
+    if (!this.fallbackOnReadError) throw error;
+    handleValkeyError(error);
+  }
+
   protected emitCacheEvents(hitKeys: string[], missKeys: string[], bloomMissKeys: string[]) {
     if (hitKeys.length > 0)
       emitValkeyEvent("cache:hit", {
