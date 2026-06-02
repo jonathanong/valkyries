@@ -43,14 +43,15 @@ export async function retryValkeyOperation<T>(
   options?: RetryValkeyOperationOptions,
 ): Promise<T> {
   const { attempts = 3, delayMs = 1000, shouldRetry = isRetryableValkeyError } = options ?? {};
+  const maxAttempts = Math.max(1, attempts);
   let lastError: unknown;
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       if (!shouldRetry(error)) throw error;
       lastError = error;
-      if (attempt < attempts - 1) {
+      if (attempt < maxAttempts - 1) {
         await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
       }
     }

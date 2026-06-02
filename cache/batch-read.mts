@@ -38,6 +38,7 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
           if (!this.fallbackOnReadError) throw error;
           handleValkeyError(error);
           stats.misses = normalizedKeys.length;
+          stats.missKeys = serializedKeys;
           const fallbackResults = await batchFn(normalizedKeys);
           assertBatchResultLength(fallbackResults, normalizedKeys.length);
           return scatter(fallbackResults.map((v) => v ?? null));

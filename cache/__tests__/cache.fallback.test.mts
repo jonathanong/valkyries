@@ -41,7 +41,7 @@ describe("cache.fallback", () => {
       expect(result).toEqual({ id: "my-key", data: "from-db" });
       expect(fetchCount).toBe(1);
       expect(capturedErrors).toHaveLength(1);
-      expect(capturedErrors[0]!.message).toContain("Reached maximum inflight requests");
+      expect(capturedErrors[0].message).toContain("Reached maximum inflight requests");
     });
 
     it("returns null when fetch fn returns null after a Valkey read error", async () => {
@@ -109,7 +109,7 @@ describe("cache.fallback", () => {
       expect(result).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
       expect(fetchedKeys).toEqual(["a", "b", "c"]);
       expect(capturedErrors).toHaveLength(1);
-      expect(capturedErrors[0]!.message).toContain("Reached maximum inflight requests");
+      expect(capturedErrors[0].message).toContain("Reached maximum inflight requests");
     });
 
     it("scatters batch fallback results back to the original key positions including duplicates", async () => {
