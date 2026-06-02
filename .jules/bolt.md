@@ -8,3 +8,7 @@
 ## 2026-05-26 - Optimize cache batch read array allocation
 **Learning:** In highly trafficked batching pipelines (like `cacheGetByAnyBatch` combining missing fetches and cache hits), using intermediate arrays is common. However, explicitly cloning those arrays inside mapping/reduction loops (e.g. `[...cachedValues]`) when the scope is tightly constrained can introduce O(N) heap allocations for every batch. In the same codepath, merging cache metadata and checks through a temporary boolean variable is also avoidable.
 **Action:** Mutate tightly-scoped intermediate arrays in place rather than spreading to clone. Evaluate explicit values directly in the `if` condition when possible instead of creating separate primitive tracking variables.
+
+## 2025-02-09 - Pre-allocate Arrays over `.map()`
+**Learning:** In hot batch paths (like Valkey cache invalidation mappings), `.map()` introduces unnecessary iterator overhead and array resizing.
+**Action:** When a dense mapping over an array is needed in a performance-critical path, allocate the output array up front using `new Array(len)` and use a traditional indexed `for` loop to write the values. Use `// eslint-disable-next-line unicorn/no-new-array` to bypass lint warnings if needed.
