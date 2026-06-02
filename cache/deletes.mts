@@ -1,3 +1,5 @@
+import type { GlideClient } from "@valkey/valkey-glide";
+import type { ValkeyCache } from "../cache.mts";
 import { cacheValkeyClient } from "../clients.mts";
 import { emitValkeyEvent } from "../events.mts";
 import { deleteKeysWithPrefix } from "../delete.mts";
@@ -8,6 +10,21 @@ import {
   cacheDeleteWithInvalidationScript,
 } from "./constants.mts";
 import { ValkeyCacheMutations } from "./mutations.mts";
+
+export type ValkeyCacheDeleteFromCachesEntry<K = any> = {
+  cache: ValkeyCache<K>;
+  keys: readonly K[];
+};
+
+type ValkeyCacheDeleteFromCachesEntryImplementation = {
+  cache: ValkeyCacheDeletes<any>;
+  keys: readonly any[];
+};
+
+type SerializedDeleteEntry = {
+  cache: ValkeyCacheDeletes<any>;
+  serializedKeys: string[];
+};
 
 export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
   async delete(...keys: K[]): Promise<number> {
@@ -64,11 +81,75 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     return ValkeyCacheDeletes.invalidate(this.prefix, this.client);
   }
 
+  static async deleteFromCaches<K>(
+    entries: readonly ValkeyCacheDeleteFromCachesEntry<K>[],
+  ): Promise<number>;
+  static async deleteFromCaches(
+    entries: readonly ValkeyCacheDeleteFromCachesEntry<any>[],
+  ): Promise<number>;
+  static async deleteFromCaches(
+    entries: readonly ValkeyCacheDeleteFromCachesEntryImplementation[],
+  ): Promise<number> {
+    const groups = new Map<GlideClient, SerializedDeleteEntry[]>();
+    for (const entry of entries) {
+      const serializedKeys: string[] = [];
+      for (const key of entry.keys) {
+        const serialized = entry.cache.toSerializedKey(key);
+        if (serialized !== null) serializedKeys.push(serialized);
+      }
+      if (serializedKeys.length === 0) continue;
+
+      const group = groups.get(entry.cache.client);
+      const serializedEntry = {
+        cache: entry.cache,
+        serializedKeys,
+      };
+      if (group) {
+        group.push(serializedEntry);
+      } else {
+        groups.set(entry.cache.client, [serializedEntry]);
+      }
+    }
+
+    let deleted = 0;
+    for (const [client, group] of groups) {
+      deleted += await ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+    }
+    return deleted;
+  }
+
   static async invalidate(prefix: string, client = cacheValkeyClient) {
     await deleteKeysWithPrefix(
       client,
       prefix ? `${CACHE_NAMESPACE}:${prefix}:*` : `${CACHE_NAMESPACE}:*`,
     );
     emitValkeyEvent("cache:invalidate", { cacheName: prefix });
+  }
+
+  private static async deleteSerializedEntriesFromClient(
+    client: ValkeyCacheDeletes["client"],
+    entries: SerializedDeleteEntry[],
+  ): Promise<number> {
+    const cacheKeys: string[] = [];
+    const invalidationKeys: string[] = [];
+    for (const entry of entries) {
+      for (const serializedKey of entry.serializedKeys) {
+        cacheKeys.push(entry.cache.getSerializedCacheKey(serializedKey));
+        invalidationKeys.push(entry.cache.getSerializedInvalidationKey(serializedKey));
+      }
+    }
+
+    const result = await client.invokeScript(cacheDeleteWithInvalidationScript, {
+      keys: [...cacheKeys, ...invalidationKeys],
+      args: [String(cacheKeys.length), String(INVALIDATION_MARKER_TTL_SECONDS)],
+    });
+
+    for (const entry of entries) {
+      emitValkeyEvent("cache:delete", {
+        cacheName: entry.cache.prefix,
+        keys: entry.serializedKeys,
+      });
+    }
+    return normalizeCountResult(result);
   }
 }
