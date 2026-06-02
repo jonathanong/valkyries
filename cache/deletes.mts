@@ -27,7 +27,11 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     }
 
     if (keyArray.length === 0) return 0;
-    const invalidationKeys = serializedKeys.map((key) => this.getSerializedInvalidationKey(key));
+    // eslint-disable-next-line unicorn/no-new-array
+    const invalidationKeys = new Array(serializedKeys.length);
+    for (let i = 0; i < serializedKeys.length; i++) {
+      invalidationKeys[i] = this.getSerializedInvalidationKey(serializedKeys[i]);
+    }
     const result = await this.client.invokeScript(cacheDeleteWithInvalidationScript, {
       keys: [...keyArray, ...invalidationKeys],
       args: [String(keyArray.length), String(INVALIDATION_MARKER_TTL_SECONDS)],
@@ -44,9 +48,9 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     // ⚡ Bolt Optimization:
     // What: Pre-allocate array and use an indexed loop.
     // Why: Avoids iterator overhead and array resizing during mapping.
-    // Impact: ~26% faster execution, reducing GC allocation pressure for batch delete operations.
+    // Impact: Measurably faster in internal benchmarks for larger batch delete operations, reducing GC allocation pressure.
     // eslint-disable-next-line unicorn/no-new-array
-    const keyArray = new Array(len);
+    const keyArray = new Array<string>(len);
     for (let i = 0; i < len; i++) {
       keyArray[i] = this.getSerializedCacheKey(serializedKeys[i]);
     }
