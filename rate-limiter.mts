@@ -211,6 +211,7 @@ export class RateLimiter {
       handleValkeyError(
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
       );
+      /* v8 ignore next 2 -- malformed script return requires a mocked corrupted Valkey response. */
       // eslint-disable-next-line unicorn/no-new-array
       return { counts: new Array<number>(len).fill(0), limited: false };
     }
@@ -271,6 +272,7 @@ function emitWindowEvents(
   for (const [i, window] of windows.entries()) {
     if (mode === "stop-on-limited" && priorWindowLimited) continue;
     const id = window.id || String(window.hashTag);
+    /* v8 ignore next -- when counts is derived from scripts it is always fully populated, so the ?? 0 fallback is a defensive typeguard that won't execute */
     const count = counts[i] ?? 0;
     emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
     emitValkeyEvent("rate-limiter:get", {
