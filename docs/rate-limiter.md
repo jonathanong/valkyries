@@ -100,6 +100,7 @@ Records and checks heterogeneous windows in one Lua script call.
 - `mode: "record-all"` records every window and is the default.
 - `mode: "stop-on-limited"` stops recording later windows after an earlier window is limited.
 - All windows must share the same effective hash tag: `hashTag ?? id`.
+- Window prefixes must not contain Redis hash tag braces, and generated Valkey keys must be unique.
 - Unexpected Valkey response types fail open with zero counts.
 
 Example:

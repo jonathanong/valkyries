@@ -515,6 +515,24 @@ describe("rate-limiter.generated", () => {
     ).rejects.toThrow("RateLimiter windows must share one Redis Cluster hash tag");
   });
 
+  it("RateLimiter.addAndCheckWindows rejects duplicate generated keys", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        { prefix: "same", id: "global", hashTag: "bucket", ttlSeconds: 60, threshold: 10 },
+        { prefix: "same", id: "global", hashTag: "bucket", ttlSeconds: 3600, threshold: 100 },
+      ]),
+    ).rejects.toThrow("RateLimiter windows must resolve to unique Valkey keys");
+  });
+
+  it("RateLimiter.addAndCheckWindows rejects prefixes with Redis hash tag braces", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        { prefix: "minute:{a}", id: "global", hashTag: "bucket", ttlSeconds: 60, threshold: 10 },
+        { prefix: "hour:{b}", id: "global", hashTag: "bucket", ttlSeconds: 3600, threshold: 100 },
+      ]),
+    ).rejects.toThrow("RateLimiter window prefix must not contain Redis hash tag braces");
+  });
+
   it("RateLimiter.addAndCheckWindows fails open on malformed responses", async () => {
     const client = {
       invokeScript: vi.fn().mockResolvedValue("not-array"),

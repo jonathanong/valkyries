@@ -176,6 +176,7 @@ export class RateLimiter {
     const client = options.client ?? rateLimiterValkeyClient;
     const mode = options.mode ?? "record-all";
     const keys = windows.map(getWindowKey);
+    validateUniqueKeys(keys);
     const base = randomUUID();
     const args: string[] = [mode];
     for (const [i, window] of windows.entries()) {
@@ -199,6 +200,9 @@ function validateWindows(windows: RateLimiterWindow[]): void {
   let sharedHashTag: string | undefined;
   for (const window of windows) {
     if (!window.prefix) throw new Error("RateLimiter window requires a prefix");
+    if (window.prefix.includes("{") || window.prefix.includes("}")) {
+      throw new Error("RateLimiter window prefix must not contain Redis hash tag braces");
+    }
     if (window.ttlSeconds <= 0) {
       throw new Error("RateLimiter window ttlSeconds must be greater than 0");
     }
@@ -212,6 +216,12 @@ function validateWindows(windows: RateLimiterWindow[]): void {
     if (sharedHashTag !== hashTag) {
       throw new Error("RateLimiter windows must share one Redis Cluster hash tag");
     }
+  }
+}
+
+function validateUniqueKeys(keys: string[]): void {
+  if (new Set(keys).size !== keys.length) {
+    throw new Error("RateLimiter windows must resolve to unique Valkey keys");
   }
 }
 

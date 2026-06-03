@@ -278,6 +278,7 @@ describe("bloom-filter.generated", () => {
       capacity: 50_000,
       errorRate: 0.005,
       batchSize: 500,
+      concurrencyLimit: 16,
       liveKey: "bloom-filter:my-config",
       buildingKey: "bloom-filter:my-config:building",
     });
