@@ -177,14 +177,9 @@ export class RateLimiter {
     const mode = options.mode ?? "record-all";
     const keys = windows.map(getWindowKey);
     const base = randomUUID();
-    const args: string[] = new Array(1 + windows.length * 3);
-    args[0] = mode;
-    for (let i = 0; i < windows.length; i++) {
-      const window = windows[i]!;
-      const offset = 1 + i * 3;
-      args[offset] = String(window.ttlSeconds);
-      args[offset + 1] = String(window.threshold);
-      args[offset + 2] = `${base}-${i}`;
+    const args = [mode];
+    for (const [i, window] of windows.entries()) {
+      args.push(String(window.ttlSeconds), String(window.threshold), `${base}-${i}`);
     }
     const results = await client.invokeScript(rateLimiterAddAndCheckWindowsScript, { keys, args });
     if (!Array.isArray(results)) {
@@ -204,10 +199,10 @@ function validateWindows(windows: RateLimiterWindow[]): void {
   let sharedHashTag: string | undefined;
   for (const window of windows) {
     if (!window.prefix) throw new Error("RateLimiter window requires a prefix");
-    if (!(window.ttlSeconds > 0)) {
+    if (window.ttlSeconds <= 0) {
       throw new Error("RateLimiter window ttlSeconds must be greater than 0");
     }
-    if (!(window.threshold > 0)) {
+    if (window.threshold <= 0) {
       throw new Error("RateLimiter window threshold must be greater than 0");
     }
     if (window.hashTag === "") throw new Error("RateLimiter window hashTag must not be empty");
@@ -232,16 +227,16 @@ function emitWindowEvents(
   mode: RateLimiterAddAndCheckWindowsOptions["mode"],
 ): void {
   let priorWindowLimited = false;
-  for (let i = 0; i < windows.length; i++) {
-    const window = windows[i]!;
+  for (const [i, window] of windows.entries()) {
     if (mode === "stop-on-limited" && priorWindowLimited) continue;
     const id = window.id || window.hashTag || "";
+    const count = counts[i] ?? 0;
     emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
     emitValkeyEvent("rate-limiter:get", {
       prefix: window.prefix,
       ids: [id],
-      counts: [counts[i] ?? 0],
+      counts: [count],
     });
-    priorWindowLimited = counts[i]! >= window.threshold;
+    priorWindowLimited = count >= window.threshold;
   }
 }

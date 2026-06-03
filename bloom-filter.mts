@@ -23,7 +23,7 @@ export class ValkeyBloomFilter {
   private errorRate: number;
   private expansionRate: number;
   private batchSize: number;
-  private concurrencyLimit: number;
+  private readonly concurrencyLimit: number;
   private liveKey: string;
   private buildingKey: string;
   private client: GlideClient;
