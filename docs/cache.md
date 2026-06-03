@@ -43,6 +43,7 @@ type ValkeyCacheOptions<K = string> = {
   nullTtlSeconds?: number;
   mode?: "json" | "text" | "buffer";
   staleTtlAge?: number;
+  staleRefresh?: boolean;
   bloomFilter?: ValkeyBloomFilter;
   bloomFilterEnabled?: () => boolean;
   client?: GlideClient;
@@ -57,6 +58,7 @@ For non-string keys, `keySerializer` is required.
 - `nullTtlSeconds`: TTL for cached nulls. Defaults to `Math.max(1, Math.floor(ttlSeconds / 60))`.
 - `mode`: serialization mode. Defaults to `json`.
 - `staleTtlAge`: refresh-ahead threshold from `0` to `1`. Defaults to `0.9`.
+- `staleRefresh`: set to `false` to return stale hits without background refresh-ahead. Defaults to `true`.
 - `bloomFilter`: optional negative-lookup Bloom filter.
 - `bloomFilterEnabled`: optional per-call gate for Bloom filter checks.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package cache client.

@@ -2,6 +2,7 @@ import { it, expect, afterEach, beforeEach, describe } from "vitest";
 import { ValkeyBloomFilter } from "../../bloom-filter.mts";
 import { cacheValkeyClient } from "../../clients.mts";
 import { valkeyEvents } from "../../events.mts";
+import type { GlideClient } from "@valkey/valkey-glide";
 
 describe("bloom-filter.generated", () => {
   let filter: ValkeyBloomFilter;
@@ -56,6 +57,42 @@ describe("bloom-filter.generated", () => {
           batchSize: -1,
         }),
     ).toThrow("batchSize must be positive");
+
+    expect(
+      () =>
+        new ValkeyBloomFilter({
+          name: "test",
+          capacity: 10_000,
+          errorRate: 0.01,
+          concurrencyLimit: 0,
+        }),
+    ).toThrow("concurrencyLimit must be positive");
+  });
+
+  it("add honors concurrencyLimit for chunked writes", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const client = {
+      invokeScript: async () => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        inFlight--;
+        return 1;
+      },
+    };
+    const limitedFilter = new ValkeyBloomFilter({
+      name: `test-bloom-concurrency-${Math.random().toString(36).slice(2)}`,
+      capacity: 100,
+      errorRate: 0.01,
+      batchSize: 1,
+      concurrencyLimit: 2,
+      client: client as unknown as GlideClient,
+    });
+
+    await limitedFilter.add(["a", "b", "c", "d", "e"]);
+
+    expect(maxInFlight).toBe(2);
   });
 
   it("exists returns null when filter does not exist", async () => {

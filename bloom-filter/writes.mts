@@ -1,12 +1,12 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
-import { chunkItems, DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT, luaBatchSize } from "./batching.mts";
+import { chunkItems, luaBatchSize } from "./batching.mts";
 import { bloomFilterAddScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
 
 export function add(state: BloomFilterState, items: string[]): Promise<void> {
   if (items.length === 0) return Promise.resolve();
-  return Promise.all(addCommands(state, items))
+  return runAddCommands(state, items)
     .then((results) => {
       if (results.some(wroteFilter)) {
         emitValkeyEvent("bloom-filter:add", { name: state.name, items });
@@ -17,7 +17,7 @@ export function add(state: BloomFilterState, items: string[]): Promise<void> {
 
 export async function addOrThrow(state: BloomFilterState, items: string[]): Promise<void> {
   if (items.length === 0) return;
-  const results = await Promise.all(addCommands(state, items));
+  const results = await runAddCommands(state, items);
   if (results.some(wroteFilter)) {
     emitValkeyEvent("bloom-filter:add", { name: state.name, items });
   }
@@ -39,7 +39,7 @@ export async function addStream(
     // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
     // We must also wait for all in-flight commands in a concurrent set to settle before
     // potentially throwing, ensuring no "late" writes happen after the method returns.
-    const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
+    const concurrencyLimit = state.concurrencyLimit;
     for (let i = 0; i < chunks.length; i += concurrencyLimit) {
       const slice = chunks.slice(i, i + concurrencyLimit);
       const settled = await Promise.allSettled(
@@ -77,17 +77,23 @@ export async function addStream(
   }
 }
 
-function addCommands(state: BloomFilterState, items: string[]): Promise<unknown>[] {
-  const cmds: Promise<unknown>[] = [];
-  for (const chunk of chunkItems(items, luaBatchSize(state.batchSize))) {
-    cmds.push(
-      state.client.invokeScript(bloomFilterAddScript, {
-        keys: [state.liveKey, state.buildingKey],
-        args: chunk,
-      }),
+async function runAddCommands(state: BloomFilterState, items: string[]): Promise<unknown[]> {
+  const chunks = Array.from(chunkItems(items, luaBatchSize(state.batchSize)));
+  const results: unknown[] = [];
+  for (let i = 0; i < chunks.length; i += state.concurrencyLimit) {
+    const slice = chunks.slice(i, i + state.concurrencyLimit);
+    results.push(
+      ...(await Promise.all(
+        slice.map((chunk) =>
+          state.client.invokeScript(bloomFilterAddScript, {
+            keys: [state.liveKey, state.buildingKey],
+            args: chunk,
+          }),
+        ),
+      )),
     );
   }
-  return cmds;
+  return results;
 }
 
 function wroteFilter(result: unknown): boolean {

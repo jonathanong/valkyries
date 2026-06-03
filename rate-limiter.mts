@@ -1,6 +1,10 @@
 import { rateLimiterValkeyClient } from "./clients.mts";
 import { loadScript, registerScript } from "./scripts.mts";
-import type { RateLimiterOptions } from "./types.mts";
+import type {
+  RateLimiterAddAndCheckWindowsOptions,
+  RateLimiterOptions,
+  RateLimiterWindow,
+} from "./types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 import { randomUUID } from "node:crypto";
 import { deleteKeysWithPrefix } from "./delete.mts";
@@ -14,6 +18,9 @@ const rateLimiterAddScript = registerScript(loadScript("rate-limiter-add.lua", i
 const rateLimiterGetScript = registerScript(loadScript("rate-limiter-get.lua", import.meta.url));
 const rateLimiterAddAndCheckScript = registerScript(
   loadScript("rate-limiter-add-and-check.lua", import.meta.url),
+);
+const rateLimiterAddAndCheckWindowsScript = registerScript(
+  loadScript("rate-limiter-add-and-check-windows.lua", import.meta.url),
 );
 
 export class RateLimiter {
@@ -158,5 +165,83 @@ export class RateLimiter {
     );
     emitValkeyEvent("rate-limiter:invalidate", { prefix });
     return result;
+  }
+
+  static async addAndCheckWindows(
+    windows: RateLimiterWindow[],
+    options: RateLimiterAddAndCheckWindowsOptions = {},
+  ): Promise<{ counts: number[]; limited: boolean }> {
+    if (windows.length === 0) return { counts: [], limited: false };
+    validateWindows(windows);
+    const client = options.client ?? rateLimiterValkeyClient;
+    const mode = options.mode ?? "record-all";
+    const keys = windows.map(getWindowKey);
+    const base = randomUUID();
+    const args: string[] = new Array(1 + windows.length * 3);
+    args[0] = mode;
+    for (let i = 0; i < windows.length; i++) {
+      const window = windows[i]!;
+      const offset = 1 + i * 3;
+      args[offset] = String(window.ttlSeconds);
+      args[offset + 1] = String(window.threshold);
+      args[offset + 2] = `${base}-${i}`;
+    }
+    const results = await client.invokeScript(rateLimiterAddAndCheckWindowsScript, { keys, args });
+    if (!Array.isArray(results)) {
+      handleValkeyError(
+        new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
+      );
+      return { counts: windows.map(() => 0), limited: false };
+    }
+    const counts = results.slice(0, windows.length).map((result) => normalizeCountResult(result));
+    const limited = normalizeCountResult(results[windows.length]) === 1;
+    emitWindowEvents(windows, counts, mode);
+    return { counts, limited };
+  }
+}
+
+function validateWindows(windows: RateLimiterWindow[]): void {
+  let sharedHashTag: string | undefined;
+  for (const window of windows) {
+    if (!window.prefix) throw new Error("RateLimiter window requires a prefix");
+    if (!(window.ttlSeconds > 0)) {
+      throw new Error("RateLimiter window ttlSeconds must be greater than 0");
+    }
+    if (!(window.threshold > 0)) {
+      throw new Error("RateLimiter window threshold must be greater than 0");
+    }
+    if (window.hashTag === "") throw new Error("RateLimiter window hashTag must not be empty");
+    const hashTag = window.hashTag ?? window.id;
+    if (!hashTag) throw new Error("RateLimiter window requires an id or hashTag");
+    sharedHashTag ??= hashTag;
+    if (sharedHashTag !== hashTag) {
+      throw new Error("RateLimiter windows must share one Redis Cluster hash tag");
+    }
+  }
+}
+
+function getWindowKey(window: RateLimiterWindow): string {
+  const hashTag = window.hashTag ?? window.id;
+  const suffix = window.hashTag && window.id ? `:${window.id}` : "";
+  return `${NAMESPACE}:${window.prefix}:{${hashTag}}${suffix}`;
+}
+
+function emitWindowEvents(
+  windows: RateLimiterWindow[],
+  counts: number[],
+  mode: RateLimiterAddAndCheckWindowsOptions["mode"],
+): void {
+  let priorWindowLimited = false;
+  for (let i = 0; i < windows.length; i++) {
+    const window = windows[i]!;
+    if (mode === "stop-on-limited" && priorWindowLimited) continue;
+    const id = window.id || window.hashTag || "";
+    emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
+    emitValkeyEvent("rate-limiter:get", {
+      prefix: window.prefix,
+      ids: [id],
+      counts: [counts[i] ?? 0],
+    });
+    priorWindowLimited = counts[i]! >= window.threshold;
   }
 }

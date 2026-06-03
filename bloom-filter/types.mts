@@ -6,6 +6,7 @@ export type BloomFilterState = {
   errorRate: number;
   expansionRate: number;
   batchSize: number;
+  concurrencyLimit: number;
   liveKey: string;
   buildingKey: string;
   client: GlideClient;

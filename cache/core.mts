@@ -22,6 +22,7 @@ export abstract class ValkeyCacheCore<K = string> {
   mode: ValkeyCacheMode;
   staleTtlAge: number;
   fallbackOnReadError: boolean;
+  staleRefresh: boolean;
   protected bloomFilter?: ValkeyBloomFilter;
   protected bloomFilterEnabled?: () => boolean;
   protected refreshPromises: Map<string, Promise<void>>;
@@ -34,6 +35,7 @@ export abstract class ValkeyCacheCore<K = string> {
     nullTtlSeconds,
     mode = "json",
     staleTtlAge = 0.9,
+    staleRefresh = true,
     bloomFilter,
     bloomFilterEnabled,
     keySerializer,
@@ -51,6 +53,7 @@ export abstract class ValkeyCacheCore<K = string> {
     }
     this.staleTtlAge = staleTtlAge;
     this.fallbackOnReadError = fallbackOnReadError;
+    this.staleRefresh = staleRefresh;
     this.bloomFilter = bloomFilter;
     this.bloomFilterEnabled = bloomFilterEnabled;
     this.refreshPromises = new Map();
@@ -165,6 +168,7 @@ export abstract class ValkeyCacheCore<K = string> {
   }
 
   protected shouldRefreshTtl(ttlSecondsRemaining: number | null) {
+    if (!this.staleRefresh) return false;
     if (typeof ttlSecondsRemaining !== "number") return false;
     if (ttlSecondsRemaining < 0) return false;
     const refreshWindow = (1 - this.staleTtlAge) * this.ttl;

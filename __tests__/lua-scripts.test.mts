@@ -28,6 +28,9 @@ const scriptRegistry = {
   rateLimiterAdd: new Script(loadScript("rate-limiter-add.lua", scriptBaseUrl)),
   rateLimiterGet: new Script(loadScript("rate-limiter-get.lua", scriptBaseUrl)),
   rateLimiterAddAndCheck: new Script(loadScript("rate-limiter-add-and-check.lua", scriptBaseUrl)),
+  rateLimiterAddAndCheckWindows: new Script(
+    loadScript("rate-limiter-add-and-check-windows.lua", scriptBaseUrl),
+  ),
 } as const;
 
 afterAll(() => {
@@ -234,6 +237,12 @@ describe("lua scripts", () => {
           args: ["30", "a-2", "b-2"],
         }),
       ).toEqual([2, 2]);
+      expect(
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAddAndCheckWindows, {
+          keys,
+          args: ["record-all", "30", "3", "a-3", "30", "3", "b-3"],
+        }),
+      ).toEqual([3, 3, 1]);
     } finally {
       await rateLimiterValkeyClient.unlink(keys);
     }

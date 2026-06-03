@@ -39,6 +39,7 @@ type ValkeyBloomFilterOptions = {
   capacity: number;
   errorRate: number;
   batchSize?: number;
+  concurrencyLimit?: number;
   expansionRate?: number;
   client?: GlideClient;
 };
@@ -48,10 +49,11 @@ type ValkeyBloomFilterOptions = {
 - `capacity`: expected item count.
 - `errorRate`: target false-positive rate between `0` and `1`.
 - `batchSize`: write/read chunk size. Defaults to `10_000`; Lua paths clamp large chunks internally.
+- `concurrencyLimit`: maximum number of write chunks in flight at once. Defaults to `16`.
 - `expansionRate`: Bloom filter expansion rate. Defaults to `2`.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package cache client.
 
-The constructor throws when `name` is empty, `capacity` is not positive, `errorRate` is not between `0` and `1`, `expansionRate` is not positive, or `batchSize` is not positive.
+The constructor throws when `name` is empty, `capacity` is not positive, `errorRate` is not between `0` and `1`, `expansionRate` is not positive, `batchSize` is not positive, or `concurrencyLimit` is not positive.
 
 ## `ensureExists(capacity?)`
 

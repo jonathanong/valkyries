@@ -459,6 +459,75 @@ describe("rate-limiter.generated", () => {
     }
   });
 
+  it("RateLimiter.addAndCheckWindows records heterogeneous windows in one call", async () => {
+    const id = `multi-${Math.random().toString(36).slice(2)}`;
+    const prefixA = `test-window-a-${Math.random().toString(36).slice(2)}`;
+    const prefixB = `test-window-b-${Math.random().toString(36).slice(2)}`;
+    try {
+      const first = await RateLimiter.addAndCheckWindows([
+        { prefix: prefixA, id: "global", hashTag: id, ttlSeconds: 60, threshold: 3 },
+        { prefix: prefixB, id: "global", hashTag: id, ttlSeconds: 3600, threshold: 2 },
+      ]);
+      expect(first).toEqual({ counts: [1, 1], limited: false });
+
+      const second = await RateLimiter.addAndCheckWindows([
+        { prefix: prefixA, id: "global", hashTag: id, ttlSeconds: 60, threshold: 3 },
+        { prefix: prefixB, id: "global", hashTag: id, ttlSeconds: 3600, threshold: 2 },
+      ]);
+      expect(second).toEqual({ counts: [2, 2], limited: true });
+    } finally {
+      await rateLimiterValkeyClient.unlink([
+        `rate-limiter:${prefixA}:{${id}}:global`,
+        `rate-limiter:${prefixB}:{${id}}:global`,
+      ]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows can stop after the first limited window", async () => {
+    const id = `stop-${Math.random().toString(36).slice(2)}`;
+    const prefixA = `test-window-stop-a-${Math.random().toString(36).slice(2)}`;
+    const prefixB = `test-window-stop-b-${Math.random().toString(36).slice(2)}`;
+    try {
+      const result = await RateLimiter.addAndCheckWindows(
+        [
+          { prefix: prefixA, id: "global", hashTag: id, ttlSeconds: 60, threshold: 1 },
+          { prefix: prefixB, id: "global", hashTag: id, ttlSeconds: 3600, threshold: 10 },
+        ],
+        { mode: "stop-on-limited" },
+      );
+
+      expect(result).toEqual({ counts: [1, 0], limited: true });
+      await expect(getSetSize(`rate-limiter:${prefixB}:{${id}}:global`)).resolves.toBe(0);
+    } finally {
+      await rateLimiterValkeyClient.unlink([
+        `rate-limiter:${prefixA}:{${id}}:global`,
+        `rate-limiter:${prefixB}:{${id}}:global`,
+      ]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows validates Redis Cluster hash tag compatibility", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        { prefix: "a", id: "one", ttlSeconds: 60, threshold: 10 },
+        { prefix: "b", id: "two", ttlSeconds: 60, threshold: 10 },
+      ]),
+    ).rejects.toThrow("RateLimiter windows must share one Redis Cluster hash tag");
+  });
+
+  it("RateLimiter.addAndCheckWindows fails open on malformed responses", async () => {
+    const client = {
+      invokeScript: vi.fn().mockResolvedValue("not-array"),
+    } as unknown as GlideClient;
+
+    await expect(
+      RateLimiter.addAndCheckWindows(
+        [{ prefix: "mock-window", id: "global", ttlSeconds: 60, threshold: 10 }],
+        { client },
+      ),
+    ).resolves.toEqual({ counts: [0], limited: false });
+  });
+
   it("RateLimiter.add handles only falsy ids without calling Valkey", async () => {
     const invokeScript = vi.fn();
     const client = {
@@ -501,3 +570,8 @@ describe("rate-limiter.generated", () => {
     await expect(rateLimiter.get(["global"])).resolves.toEqual([0]);
   });
 });
+
+async function getSetSize(key: string): Promise<number> {
+  const result = await rateLimiterValkeyClient.customCommand(["ZCARD", key]);
+  return Number(result);
+}

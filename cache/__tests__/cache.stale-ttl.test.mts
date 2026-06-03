@@ -81,6 +81,34 @@ describe("cache.stale-ttl", () => {
     await cache.delete(key);
   });
 
+  it("ValkeyCache cacheGetByAny can skip stale background refresh", async () => {
+    const cache = new ValkeyCache({
+      prefix: "test",
+      ttlSeconds: 10,
+      staleTtlAge: 0.8,
+      staleRefresh: false,
+    });
+    const key = `test-no-stale-refresh-${Math.random().toString(36).slice(2)}`;
+    let callCount = 0;
+    const cachedFn = cache.cacheGetByAny((id: string) => {
+      callCount++;
+      return Promise.resolve({ id, version: callCount });
+    });
+
+    await cachedFn(key);
+    await waitFor(async () => (await cache.get(key)) !== null);
+    await cacheValkeyClient.expire(cache.getKey(key), 1);
+
+    const result = await cachedFn(key);
+
+    expect(result).toEqual({ id: key, version: 1 });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(callCount).toBe(1);
+    expect(await cache.get(key)).toEqual({ id: key, version: 1 });
+
+    await cache.delete(key);
+  });
+
   it("ValkeyCache cacheGetByAny skips stale background refresh write after invalidation", async () => {
     const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10, staleTtlAge: 0.8 });
     const key = `test-stale-refresh-invalidated-${Math.random().toString(36).slice(2)}`;
