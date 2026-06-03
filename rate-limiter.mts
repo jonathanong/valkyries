@@ -239,7 +239,7 @@ function emitWindowEvents(
   let priorWindowLimited = false;
   for (const [i, window] of windows.entries()) {
     if (mode === "stop-on-limited" && priorWindowLimited) continue;
-    const id = window.id || window.hashTag || "";
+    const id = window.id || String(window.hashTag);
     const count = counts[i] ?? 0;
     emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
     emitValkeyEvent("rate-limiter:get", {
