@@ -4,6 +4,7 @@ import { valkeyEvents } from "../../events.mts";
 import { it, expect, describe, vi } from "vitest";
 import assert from "node:assert";
 import type { GlideClient } from "@valkey/valkey-glide";
+import type { RateLimiterWindow } from "../../types.mts";
 
 describe("rate-limiter.generated", () => {
   it("RateLimiter validates prefix and ttl", () => {
@@ -459,6 +460,181 @@ describe("rate-limiter.generated", () => {
     }
   });
 
+  it("RateLimiter.addAndCheckWindows records heterogeneous windows in one call", async () => {
+    const id = `multi-${Math.random().toString(36).slice(2)}`;
+    const prefixA = `test-window-a-${Math.random().toString(36).slice(2)}`;
+    const prefixB = `test-window-b-${Math.random().toString(36).slice(2)}`;
+    try {
+      const first = await RateLimiter.addAndCheckWindows([
+        testWindow({ prefix: prefixA, hashTag: id, threshold: 3 }),
+        testWindow({ prefix: prefixB, hashTag: id, ttlSeconds: 3600, threshold: 2 }),
+      ]);
+      expect(first).toEqual({ counts: [1, 1], limited: false });
+
+      const second = await RateLimiter.addAndCheckWindows([
+        testWindow({ prefix: prefixA, hashTag: id, threshold: 3 }),
+        testWindow({ prefix: prefixB, hashTag: id, ttlSeconds: 3600, threshold: 2 }),
+      ]);
+      expect(second).toEqual({ counts: [2, 2], limited: true });
+    } finally {
+      await rateLimiterValkeyClient.unlink([
+        `rate-limiter:${prefixA}:{${id}}:global`,
+        `rate-limiter:${prefixB}:{${id}}:global`,
+      ]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows returns open for empty windows", async () => {
+    await expect(RateLimiter.addAndCheckWindows([])).resolves.toEqual({
+      counts: [],
+      limited: false,
+    });
+  });
+
+  it("RateLimiter.addAndCheckWindows can stop after the first limited window", async () => {
+    const id = `stop-${Math.random().toString(36).slice(2)}`;
+    const prefixA = `test-window-stop-a-${Math.random().toString(36).slice(2)}`;
+    const prefixB = `test-window-stop-b-${Math.random().toString(36).slice(2)}`;
+    try {
+      const result = await RateLimiter.addAndCheckWindows(
+        [
+          testWindow({ prefix: prefixA, hashTag: id, threshold: 1 }),
+          testWindow({ prefix: prefixB, hashTag: id, ttlSeconds: 3600 }),
+        ],
+        { mode: "stop-on-limited" },
+      );
+
+      expect(result).toEqual({ counts: [1, 0], limited: true });
+      await expect(getSetSize(`rate-limiter:${prefixB}:{${id}}:global`)).resolves.toBe(0);
+    } finally {
+      await rateLimiterValkeyClient.unlink([
+        `rate-limiter:${prefixA}:{${id}}:global`,
+        `rate-limiter:${prefixB}:{${id}}:global`,
+      ]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows validates Redis Cluster hash tag compatibility", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        { prefix: "a", id: "one", ttlSeconds: 60, threshold: 10 },
+        { prefix: "b", id: "two", ttlSeconds: 60, threshold: 10 },
+      ]),
+    ).rejects.toThrow("RateLimiter windows must share one Redis Cluster hash tag");
+  });
+
+  it("RateLimiter.addAndCheckWindows validates window limits", async () => {
+    await expect(RateLimiter.addAndCheckWindows([testWindow({ ttlSeconds: 0 })])).rejects.toThrow(
+      "RateLimiter window ttlSeconds must be greater than 0",
+    );
+    await expect(RateLimiter.addAndCheckWindows([testWindow({ threshold: 0 })])).rejects.toThrow(
+      "RateLimiter window threshold must be greater than 0",
+    );
+    await expect(RateLimiter.addAndCheckWindows([testWindow({ hashTag: "" })])).rejects.toThrow(
+      "RateLimiter window hashTag must not be empty",
+    );
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        { prefix: "missing-id", id: "", ttlSeconds: 60, threshold: 10 },
+      ]),
+    ).rejects.toThrow("RateLimiter window requires an id or hashTag");
+    await expect(RateLimiter.addAndCheckWindows([testWindow({ prefix: "" })])).rejects.toThrow(
+      "RateLimiter window requires a prefix",
+    );
+  });
+
+  it("RateLimiter.addAndCheckWindows rejects duplicate generated keys", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        testWindow({ prefix: "same" }),
+        testWindow({ prefix: "same", ttlSeconds: 3600, threshold: 100 }),
+      ]),
+    ).rejects.toThrow("RateLimiter windows must resolve to unique Valkey keys");
+  });
+
+  it("RateLimiter.addAndCheckWindows rejects prefixes with Redis hash tag braces", async () => {
+    await expect(
+      RateLimiter.addAndCheckWindows([
+        testWindow({ prefix: "minute:{a}" }),
+        testWindow({ prefix: "hour:{b}", ttlSeconds: 3600, threshold: 100 }),
+      ]),
+    ).rejects.toThrow("RateLimiter window prefix must not contain Redis hash tag braces");
+  });
+
+  it("RateLimiter.addAndCheckWindows can use id as the hash tag", async () => {
+    const invokeScript = vi.fn().mockResolvedValue([1, 0]);
+    const client = {
+      invokeScript,
+    } as unknown as GlideClient;
+
+    await expect(
+      RateLimiter.addAndCheckWindows(
+        [{ prefix: "mock-id-window", id: "global", ttlSeconds: 60, threshold: 10 }],
+        { client },
+      ),
+    ).resolves.toEqual({ counts: [1], limited: false });
+    expect(invokeScript).toHaveBeenCalledWith(expect.anything(), {
+      keys: ["rate-limiter:mock-id-window:{global}"],
+      args: expect.any(Array),
+    });
+  });
+
+  it("RateLimiter.addAndCheckWindows emits hashTag when id is empty", async () => {
+    const client = {
+      invokeScript: vi.fn().mockResolvedValue([1, 0]),
+    } as unknown as GlideClient;
+    const addEvents: { prefix: string; ids: string[] }[] = [];
+    const handler = (data: { prefix: string; ids: string[] }) => {
+      if (data.prefix === "mock-hash-window") addEvents.push(data);
+    };
+    valkeyEvents.on("rate-limiter:add", handler);
+
+    try {
+      await RateLimiter.addAndCheckWindows(
+        [testWindow({ prefix: "mock-hash-window", id: "", hashTag: "hash-only" })],
+        { client },
+      );
+      expect(addEvents).toEqual([{ prefix: "mock-hash-window", ids: ["hash-only"] }]);
+    } finally {
+      valkeyEvents.off("rate-limiter:add", handler);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows emits zero counts for short script responses", async () => {
+    const client = {
+      invokeScript: vi.fn().mockResolvedValue([]),
+    } as unknown as GlideClient;
+    const getEvents: { prefix: string; ids: string[]; counts: number[] }[] = [];
+    const handler = (data: { prefix: string; ids: string[]; counts: number[] }) => {
+      if (data.prefix === "mock-short-window") getEvents.push(data);
+    };
+    valkeyEvents.on("rate-limiter:get", handler);
+
+    try {
+      await expect(
+        RateLimiter.addAndCheckWindows(
+          [testWindow({ prefix: "mock-short-window", id: "", hashTag: "short-hash" })],
+          { client },
+        ),
+      ).resolves.toEqual({ counts: [], limited: false });
+      expect(getEvents).toEqual([
+        { prefix: "mock-short-window", ids: ["short-hash"], counts: [0] },
+      ]);
+    } finally {
+      valkeyEvents.off("rate-limiter:get", handler);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows fails open on malformed responses", async () => {
+    const client = {
+      invokeScript: vi.fn().mockResolvedValue("not-array"),
+    } as unknown as GlideClient;
+
+    await expect(
+      RateLimiter.addAndCheckWindows([testWindow({ prefix: "mock-window" })], { client }),
+    ).resolves.toEqual({ counts: [0], limited: false });
+  });
+
   it("RateLimiter.add handles only falsy ids without calling Valkey", async () => {
     const invokeScript = vi.fn();
     const client = {
@@ -501,3 +677,19 @@ describe("rate-limiter.generated", () => {
     await expect(rateLimiter.get(["global"])).resolves.toEqual([0]);
   });
 });
+
+async function getSetSize(key: string): Promise<number> {
+  const result = await rateLimiterValkeyClient.customCommand(["ZCARD", key]);
+  return Number(result);
+}
+
+function testWindow(overrides: Partial<RateLimiterWindow> = {}): RateLimiterWindow {
+  return {
+    prefix: "window",
+    id: "global",
+    ttlSeconds: 60,
+    threshold: 10,
+    hashTag: "bucket",
+    ...overrides,
+  };
+}

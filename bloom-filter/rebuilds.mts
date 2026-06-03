@@ -1,6 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
-import { chunkItems, DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT } from "./batching.mts";
+import { chunkItems, concurrentSlices } from "./batching.mts";
 import { bloomFilterEnsureExistsScript, bloomFilterReserveScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
 
@@ -39,9 +39,7 @@ export async function rebuildFromStream(
       // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
       // We must also wait for all in-flight commands in a concurrent set to settle before
       // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
-      const concurrencyLimit = DEFAULT_BLOOM_FILTER_CONCURRENCY_LIMIT;
-      for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-        const slice = chunks.slice(i, i + concurrencyLimit);
+      for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
         const settled = await Promise.allSettled(
           slice.map((chunk) =>
             state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]),
@@ -51,7 +49,7 @@ export async function rebuildFromStream(
         for (let j = 0; j < settled.length; j++) {
           const res = settled[j];
           if (res.status === "fulfilled") {
-            results[i + j] = true;
+            results[start + j] = true;
           } else if (firstError === undefined) {
             firstError = res.reason;
           }
@@ -60,7 +58,7 @@ export async function rebuildFromStream(
         // Emit events for this concurrent slice in order before moving to the next slice
         // or throwing an error, maintaining sequential event ordering for consumers.
         for (let j = 0; j < settled.length; j++) {
-          if (results[i + j]) {
+          if (results[start + j]) {
             emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
           }
         }

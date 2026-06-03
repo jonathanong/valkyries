@@ -23,6 +23,7 @@ export class ValkeyBloomFilter {
   private errorRate: number;
   private expansionRate: number;
   private batchSize: number;
+  private readonly concurrencyLimit: number;
   private liveKey: string;
   private buildingKey: string;
   private client: GlideClient;
@@ -34,6 +35,7 @@ export class ValkeyBloomFilter {
       errorRate,
       expansionRate = 2,
       batchSize = 10_000,
+      concurrencyLimit = 16,
       client = cacheValkeyClient,
     } = options;
 
@@ -42,12 +44,14 @@ export class ValkeyBloomFilter {
     assert(errorRate > 0 && errorRate < 1, "errorRate must be between 0 and 1");
     assert(expansionRate > 0, "expansionRate must be positive");
     assert(batchSize > 0, "batchSize must be positive");
+    assert(concurrencyLimit > 0, "concurrencyLimit must be positive");
 
     this.name = name;
     this.capacity = capacity;
     this.errorRate = errorRate;
     this.expansionRate = expansionRate;
     this.batchSize = batchSize;
+    this.concurrencyLimit = concurrencyLimit;
     this.liveKey = `bloom-filter:${name}`;
     this.buildingKey = `bloom-filter:${name}:building`;
     this.client = client;
@@ -172,6 +176,7 @@ export class ValkeyBloomFilter {
       capacity: this.capacity,
       errorRate: this.errorRate,
       batchSize: this.batchSize,
+      concurrencyLimit: this.concurrencyLimit,
       liveKey: this.liveKey,
       buildingKey: this.buildingKey,
     };
@@ -188,6 +193,7 @@ export class ValkeyBloomFilter {
       errorRate: this.errorRate,
       expansionRate: this.expansionRate,
       batchSize: this.batchSize,
+      concurrencyLimit: this.concurrencyLimit,
       liveKey: this.liveKey,
       buildingKey: this.buildingKey,
       client: this.client,

@@ -15,6 +15,26 @@ export type RateLimiterOptions = {
   client?: GlideClient;
 };
 
+export type RateLimiterWindow = {
+  /** The prefix to use for this window's rate-limiter key */
+  prefix: string;
+  /** The logical ID being limited. When hashTag is set, this is appended after the hash tag. */
+  id: string;
+  /** The TTL in seconds for this window */
+  ttlSeconds: number;
+  /** The post-add count threshold where this window becomes limited */
+  threshold: number;
+  /** Optional Redis Cluster hash tag. All windows in one call must share the same hash tag. */
+  hashTag?: string;
+};
+
+export type RateLimiterAddAndCheckWindowsOptions = {
+  /** Optional Valkey client. Defaults to the package rate limiter client. */
+  client?: GlideClient;
+  /** Stop processing later windows as soon as an earlier window is limited. Defaults to record-all. */
+  mode?: "record-all" | "stop-on-limited";
+};
+
 export type ValkeyCacheOptions<K = string> = {
   /** The prefix to use for the cache */
   prefix: string;
@@ -26,6 +46,8 @@ export type ValkeyCacheOptions<K = string> = {
   mode?: "json" | "text" | "buffer";
   /** Fraction of ttlSeconds representing the age threshold; values are stale when ttlSecondsRemaining < (1 - staleTtlAge) * ttlSeconds (0-1, defaults to 0.9) */
   staleTtlAge?: number;
+  /** When false, stale cache hits are returned without a background refresh. Defaults to true. */
+  staleRefresh?: boolean;
   /** Optional bloom filter for negative lookups — skip DB calls for entities that definitely don't exist */
   bloomFilter?: import("./bloom-filter.mts").ValkeyBloomFilter;
   /** Optional runtime feature flag — if provided, called per-request; bloom filter is bypassed when it returns false */
@@ -83,6 +105,8 @@ export type ValkeyBloomFilterOptions = {
   errorRate: number;
   /** The batch size for bulk operations (optional, defaults to 10,000; Lua paths clamp to 5,000) */
   batchSize?: number;
+  /** Maximum number of Bloom write chunks in flight at once. Defaults to 16. */
+  concurrencyLimit?: number;
   /** The expansion rate for auto-growth (optional, defaults to 2) */
   expansionRate?: number;
   /** Optional Valkey client. Defaults to the package cache client. */

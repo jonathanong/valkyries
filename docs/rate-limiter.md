@@ -16,6 +16,8 @@ Use `addAndCheck(ids, threshold)` for request paths. It atomically adds an event
 
 A threshold of `N` blocks the Nth request because the count is checked after incrementing.
 
+Use `RateLimiter.addAndCheckWindows(windows)` when one logical request must be checked against multiple TTL/threshold windows in one Valkey round trip. All windows in that call must share one Redis Cluster hash tag.
+
 ## Import
 
 ```ts
@@ -77,6 +79,28 @@ Atomically records events and returns the current counts.
 - `limited` is `true` when any post-add count is greater than or equal to `threshold`.
 - Empty or all-falsy input returns `{ counts: [], limited: false }`.
 - `ttlSeconds` overrides the instance TTL for this check.
+- Unexpected Valkey response types fail open with zero counts.
+
+## `RateLimiter.addAndCheckWindows(windows, options?)`
+
+```ts
+RateLimiter.addAndCheckWindows(
+  [
+    { prefix: "web-risk-minute", id: "global", hashTag: "2026-06", ttlSeconds: 60, threshold: 5001 },
+    { prefix: "web-risk-month", id: "global", hashTag: "2026-06", ttlSeconds: 31 * 24 * 60 * 60, threshold: 90001 },
+  ],
+  { mode: "stop-on-limited" },
+): Promise<{ counts: number[]; limited: boolean }>
+```
+
+Records and checks heterogeneous windows in one Lua script call.
+
+- `counts` aligns with `windows`.
+- `limited` is `true` when any post-add count is greater than or equal to its window threshold.
+- `mode: "record-all"` records every window and is the default.
+- `mode: "stop-on-limited"` stops recording later windows after an earlier window is limited.
+- All windows must share the same effective hash tag: `hashTag ?? id`.
+- Window prefixes must not contain Redis hash tag braces, and generated Valkey keys must be unique.
 - Unexpected Valkey response types fail open with zero counts.
 
 Example:
