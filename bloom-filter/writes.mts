@@ -1,6 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
-import { chunkItems, luaBatchSize } from "./batching.mts";
+import { chunkItems, concurrentSlices, luaBatchSize } from "./batching.mts";
 import { bloomFilterAddScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
 
@@ -39,9 +39,7 @@ export async function addStream(
     // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
     // We must also wait for all in-flight commands in a concurrent set to settle before
     // potentially throwing, ensuring no "late" writes happen after the method returns.
-    const concurrencyLimit = state.concurrencyLimit;
-    for (let i = 0; i < chunks.length; i += concurrencyLimit) {
-      const slice = chunks.slice(i, i + concurrencyLimit);
+    for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
       const settled = await Promise.allSettled(
         slice.map((chunk) =>
           state.client.invokeScript(bloomFilterAddScript, {
@@ -54,7 +52,7 @@ export async function addStream(
       for (let j = 0; j < settled.length; j++) {
         const res = settled[j];
         if (res.status === "fulfilled") {
-          results[i + j] = res.value;
+          results[start + j] = res.value;
         } else if (firstError === undefined) {
           firstError = res.reason;
         }
@@ -63,7 +61,7 @@ export async function addStream(
       // Emit events for this concurrent slice in order before moving to the next slice
       // or throwing an error, maintaining sequential event ordering for consumers.
       for (let j = 0; j < settled.length; j++) {
-        if (wroteFilter(results[i + j])) {
+        if (wroteFilter(results[start + j])) {
           emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
         }
       }
@@ -80,8 +78,7 @@ export async function addStream(
 async function runAddCommands(state: BloomFilterState, items: string[]): Promise<unknown[]> {
   const chunks = Array.from(chunkItems(items, luaBatchSize(state.batchSize)));
   const results: unknown[] = [];
-  for (let i = 0; i < chunks.length; i += state.concurrencyLimit) {
-    const slice = chunks.slice(i, i + state.concurrencyLimit);
+  for (const { slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
     results.push(
       ...(await Promise.all(
         slice.map((chunk) =>

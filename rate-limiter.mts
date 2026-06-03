@@ -177,7 +177,7 @@ export class RateLimiter {
     const mode = options.mode ?? "record-all";
     const keys = windows.map(getWindowKey);
     const base = randomUUID();
-    const args = [mode];
+    const args: string[] = [mode];
     for (const [i, window] of windows.entries()) {
       args.push(String(window.ttlSeconds), String(window.threshold), `${base}-${i}`);
     }

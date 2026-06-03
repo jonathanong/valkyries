@@ -20,3 +20,12 @@ export function* chunkItems(
     if (chunk.length > 0) yield chunk;
   }
 }
+
+export function* concurrentSlices<T>(
+  items: T[],
+  concurrencyLimit: number,
+): Generator<{ start: number; slice: T[] }> {
+  for (let start = 0; start < items.length; start += concurrencyLimit) {
+    yield { start, slice: items.slice(start, start + concurrencyLimit) };
+  }
+}
