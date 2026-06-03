@@ -7,6 +7,9 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
 
 permissions:
   pull-requests: write
@@ -80,17 +83,12 @@ jobs:
               per_page: 100,
             });
 
-            if (hasActiveApproval(reviews)) {
-              core.info('Approval already present');
-            } else {
-              core.info('Approving PR');
-              await github.rest.pulls.createReview({
-                owner,
-                repo,
-                pull_number: pr.number,
-                event: 'APPROVE',
-              });
+            if (!hasActiveApproval(reviews)) {
+              core.info('Skipping pull request without approval');
+              return;
             }
+
+            core.info('Approval already present');
 
             const { data: freshPr } = await github.rest.pulls.get({
               owner,
