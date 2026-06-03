@@ -616,7 +616,7 @@ describe("rate-limiter.generated", () => {
           [testWindow({ prefix: "mock-short-window", id: "", hashTag: "short-hash" })],
           { client },
         ),
-      ).resolves.toEqual({ counts: [], limited: false });
+      ).resolves.toEqual({ counts: [0], limited: false });
       expect(getEvents).toEqual([
         { prefix: "mock-short-window", ids: ["short-hash"], counts: [0] },
       ]);
