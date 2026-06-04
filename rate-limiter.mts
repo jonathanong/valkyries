@@ -186,6 +186,8 @@ export class RateLimiter {
     // eslint-disable-next-line unicorn/no-new-array
     const args = new Array<string>(len * 3 + 1);
 
+    // Unique-per-window UUID + index prevents predictability/collisions.
+    const base = randomUUID();
     args[0] = mode;
     let offset = 1;
     for (let i = 0; i < len; i++) {
@@ -193,18 +195,10 @@ export class RateLimiter {
       keys[i] = getWindowKey(window);
       args[offset++] = String(window.ttlSeconds);
       args[offset++] = String(window.threshold);
-      args[offset++] = `rate-limit-uuid-placeholder`; // Replaced by base uuid below
+      args[offset++] = `${base}-${i}`;
     }
 
     validateUniqueKeys(keys);
-
-    // Replace placeholders with real UUID + index to prevent predictability/collisions
-    const base = randomUUID();
-    offset = 3;
-    for (let i = 0; i < len; i++) {
-      args[offset] = `${base}-${i}`;
-      offset += 3;
-    }
 
     const results = await client.invokeScript(rateLimiterAddAndCheckWindowsScript, { keys, args });
     if (!Array.isArray(results)) {
