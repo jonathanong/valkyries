@@ -23,7 +23,9 @@ describe("events", () => {
       const emitSpy = vi.spyOn(valkeyEvents, "emit").mockImplementation(() => {
         throw error;
       });
-      const handleValkeyErrorSpy = vi.spyOn(errorsModule, "handleValkeyError").mockImplementation(() => {});
+      const handleValkeyErrorSpy = vi
+        .spyOn(errorsModule, "handleValkeyError")
+        .mockImplementation(() => {});
 
       const eventArg = { cacheName: "test-cache", keys: ["key1"] };
 
