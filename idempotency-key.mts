@@ -144,7 +144,7 @@ function validateKey(key: string): void {
 }
 
 function validateTtlSeconds(ttlSeconds: number): void {
-  if (!(ttlSeconds > 0)) throw new Error("ttlSeconds must be greater than 0");
+  if (ttlSeconds <= 0) throw new Error("ttlSeconds must be greater than 0");
 }
 
 function validateNonEmpty(name: string, value: string): void {
