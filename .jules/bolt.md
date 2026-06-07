@@ -1,17 +1,3 @@
-## 2026-05-28 - In-Place Batch Merge Mutation
-**Learning:** In the `cache/batch-read.mts` file, `mergeFetchedResults` previously cloned the intermediate cached values array using the spread operator (`[...cachedValues]`) before merging in newly fetched results. This incurred unnecessary array allocation and garbage collection overhead in the hot path.
-**Action:** When merging fetched batch results into a temporary intermediate array, avoid using spread operators if the array is safely ephemeral; mutate in place via an indexed loop to lower GC pressure and memory allocation.
-
-## 2026-05-25 - Flush concurrent deletes before continuing with delete-by-prefix
-**Learning:** When collecting asynchronous operations (like Valkey `unlink`) inside a scan loop, unbounded arrays can grow quickly and rejected promises can surface after control leaves the loop, changing failure timing and observability.
-**Action:** Buffer unlink promises, cap work in batches, and flush in batches as promises settle via `Promise.all()` over wrapped results, so all in-flight operations are observed before reporting a broader failure. Handle rejection reasons through `handleValkeyError` while keeping errors from escaping mid-loop, and avoid `catch(() => {})` swallow patterns that hide unlink failures.
-## 2026-05-26 - Optimize cache batch read array allocation
-**Learning:** In highly trafficked batching pipelines (like `cacheGetByAnyBatch` combining missing fetches and cache hits), using intermediate arrays is common. However, explicitly cloning those arrays inside mapping/reduction loops (e.g. `[...cachedValues]`) when the scope is tightly constrained can introduce O(N) heap allocations for every batch. In the same codepath, merging cache metadata and checks through a temporary boolean variable is also avoidable.
-**Action:** Mutate tightly-scoped intermediate arrays in place rather than spreading to clone. Evaluate explicit values directly in the `if` condition when possible instead of creating separate primitive tracking variables.
-## 2025-02-09 - Pre-allocate Arrays over `.map()`
-**Learning:** In hot batch paths (like Valkey cache invalidation mappings), `.map()` introduces unnecessary iterator overhead and array resizing.
-**Action:** When a dense mapping over an array is needed in a performance-critical path, allocate the output array up front using `new Array(len)` and use a traditional indexed `for` loop to write the values. Use `// eslint-disable-next-line unicorn/no-new-array` to bypass lint warnings if needed.
-
-## 2026-05-30 - Optimize object iteration
-**Learning:** In `dynamic-config/storage.mts` and `dynamic-config/fields.mts`, iterating over `Object.entries()` creates `[key, value]` tuple allocations per entry, which causes measurable overhead compared to iterating over `Object.keys()` and manually looking up the property value. A micro-benchmark showed ~75% faster execution time for this pattern by avoiding those per-entry tuple allocations.
-**Action:** In performance-sensitive loops, prefer `Object.keys()` with manual value lookup and avoid `Object.entries()` destructuring to reduce per-entry tuple overhead. Always benchmark first before applying to ensure a tangible speedup, and document the impact inline.
+## 2026-06-07 - Pre-compute and Map Object Configuration in Constructor for Loop Optimization
+**Learning:** In hot path loops, performing dictionary lookups (`fieldTypes[name]` and `defaultFields[name]`) on every iteration inside methods like `buildMissingDefaultWrites` or `applyFieldsFromMap` is a performance bottleneck.
+**Action:** Pre-compute the merged configuration state as an array of objects during class instantiation so the methods can iterate natively over the array properties without using `Object.keys()` and without repeatedly accessing the parent dictionaries.
