@@ -10,12 +10,12 @@ describe("events", () => {
   describe("emitValkeyEvent", () => {
     it("should emit an event successfully", () => {
       const emitSpy = vi.spyOn(valkeyEvents, "emit");
-      const eventArgs = [{ cacheName: "test-cache", keys: ["key1"] }];
+      const eventArg = { cacheName: "test-cache", keys: ["key1"] };
 
-      emitValkeyEvent("cache:set", ...eventArgs);
+      emitValkeyEvent("cache:set", eventArg);
 
       expect(emitSpy).toHaveBeenCalledTimes(1);
-      expect(emitSpy).toHaveBeenCalledWith("cache:set", ...eventArgs);
+      expect(emitSpy).toHaveBeenCalledWith("cache:set", eventArg);
     });
 
     it("should handle error during emit and call handleValkeyError", () => {
@@ -25,9 +25,9 @@ describe("events", () => {
       });
       const handleValkeyErrorSpy = vi.spyOn(errorsModule, "handleValkeyError").mockImplementation(() => {});
 
-      const eventArgs = [{ cacheName: "test-cache", keys: ["key1"] }];
+      const eventArg = { cacheName: "test-cache", keys: ["key1"] };
 
-      emitValkeyEvent("cache:set", ...eventArgs);
+      emitValkeyEvent("cache:set", eventArg);
 
       expect(emitSpy).toHaveBeenCalledTimes(1);
       expect(handleValkeyErrorSpy).toHaveBeenCalledTimes(1);
