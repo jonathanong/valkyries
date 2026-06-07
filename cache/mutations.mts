@@ -62,12 +62,12 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     const batch = new Batch(false);
     const writtenKeys: string[] = [];
     for (let i = 0; i < validEntries.length; i++) {
-      const result = serializationResults[i];
+      const result = serializationResults[i]!;
       if (result.status === "rejected") {
         this.handleSerializationFailure(result.reason);
         continue;
       }
-      const entry = validEntries[i];
+      const entry = validEntries[i]!;
       batch.set(this.getSerializedCacheKey(entry.serializedKey), result.value, {
         expiry: { type: TimeUnit.Seconds, count: this.entryTtl(entry) },
       });
@@ -120,12 +120,12 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     );
     const setEntries: Array<{ serializedKey: string; value: string | Buffer; ttl?: number }> = [];
     for (let i = 0; i < validEntries.length; i++) {
-      const result = serializationResults[i];
+      const result = serializationResults[i]!;
       if (result.status === "rejected") {
         this.handleSerializationFailure(result.reason);
         continue;
       }
-      const entry = validEntries[i];
+      const entry = validEntries[i]!;
       setEntries.push({
         serializedKey: entry.serializedKey,
         value: result.value,
@@ -157,7 +157,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     args[0] = String(len);
 
     for (let i = 0; i < len; i++) {
-      const entry = entries[i];
+      const entry = entries[i]!;
       keys[i] = this.getSerializedCacheKey(entry.serializedKey);
       keys[len + i] = this.getSerializedInvalidationKey(entry.serializedKey);
       args[1 + i * 2] = String(entry.ttl != null && entry.ttl > 0 ? entry.ttl : this.ttl);
@@ -178,7 +178,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     const useSet = len > REFRESH_ALIAS_DEDUPE_THRESHOLD;
     const seenSet = useSet ? new Set<string>() : null;
     for (let i = 0; i < len; i++) {
-      const key = aliases[i];
+      const key = aliases[i]!;
       const serialized = this.toSerializedKey(key);
       if (serialized === null) continue;
       if (firstValidAlias === null) firstValidAlias = key;
@@ -209,7 +209,7 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     // Why: Avoids iterator overhead in this dense-array hot path.
     // Impact: Reduces GC pressure and improves throughput for batch operations.
     for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
+      const entry = entries[i]!;
       const serializedKey = this.toSerializedKey(entry.key);
       if (serializedKey !== null) {
         result.push({ ...entry, serializedKey });
