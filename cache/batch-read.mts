@@ -13,6 +13,21 @@ class BatchReadStats {
 }
 
 export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingleRead<K> {
+  private async handleBatchReadFallback<T>(
+    error: unknown,
+    normalizedKeys: K[],
+    serializedKeys: string[],
+    stats: BatchReadStats,
+    batchFn: (keys: K[]) => Promise<Array<T | null | undefined>>,
+  ): Promise<Array<T | null>> {
+    this.handleReadError(error);
+    stats.misses = normalizedKeys.length;
+    stats.missKeys = serializedKeys;
+    const fallbackResults = await batchFn(normalizedKeys);
+    assertBatchResultLength(fallbackResults, normalizedKeys.length);
+    return Array.from(fallbackResults, (v) => v ?? null);
+  }
+
   cacheGetByAnyBatch<T>(
     batchFn: (keys: K[]) => Promise<Array<T | null | undefined>>,
   ): (keys: K[]) => Promise<Array<T | null>> {
@@ -46,21 +61,17 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         try {
           cachedEntries = await this.getValuesWithTtl(serializedKeys);
         } catch (error) {
-          this.handleReadError(error);
-          stats.misses = normalizedKeys.length;
-          stats.missKeys = serializedKeys;
-          const fallbackResults = await batchFn(normalizedKeys);
-          assertBatchResultLength(fallbackResults, normalizedKeys.length);
-          return scatter(Array.from(fallbackResults, (v) => v ?? null));
+          const fallbackResults = await this.handleBatchReadFallback(
+            error,
+            normalizedKeys,
+            serializedKeys,
+            stats,
+            batchFn,
+          );
+          return scatter(fallbackResults);
         }
         const cachedValues = cachedEntries.map((entry) => entry.value as T | null);
-        const missing = collectMissingKeys(
-          cachedEntries,
-          normalizedKeys,
-          serializedKeys,
-          cachedValues,
-          stats,
-        );
+        const missing = collectMissingKeys(cachedEntries, normalizedKeys, serializedKeys, stats);
         stats.misses = missing.keys.length;
         stats.hits = normalizedKeys.length - stats.misses - stats.bloomMisses;
         this.refreshStaleBatchEntries(serializedKeys, normalizedKeys, cachedEntries, batchFn);
@@ -104,13 +115,12 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
           values[i] = null;
           continue;
         }
-        const keyExists = entry.ttlSecondsRemaining !== null && entry.ttlSecondsRemaining !== -2;
-        if (entry.value !== null || keyExists) {
-          stats.hits++;
-          stats.hitKeys.push(serializedKeys[i]);
-        } else {
+        if (isCacheMiss(entry)) {
           stats.misses++;
           stats.missKeys.push(serializedKeys[i]);
+        } else {
+          stats.hits++;
+          stats.hitKeys.push(serializedKeys[i]);
         }
         values[i] = entry.value;
       }
@@ -151,11 +161,16 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
   }
 }
 
-function collectMissingKeys<K, T>(
+function isCacheMiss(entry: { value: unknown; ttlSecondsRemaining: number | null }): boolean {
+  return (
+    entry.value === null && (entry.ttlSecondsRemaining === null || entry.ttlSecondsRemaining === -2)
+  );
+}
+
+function collectMissingKeys<K>(
   entries: Array<{ value: unknown; ttlSecondsRemaining: number | null; bloomMiss: boolean }>,
   normalizedKeys: K[],
   serializedKeys: string[],
-  cachedValues: Array<T | null>,
   stats: BatchReadStats,
 ) {
   const indices: number[] = [];
@@ -164,17 +179,14 @@ function collectMissingKeys<K, T>(
   // What: Combine the TTL check and avoid a temporary boolean variable.
   // Why: Simplifies the condition path in the hot loop.
   // Impact: Better throughput for large batches.
-  for (let i = 0; i < cachedValues.length; i++) {
+  for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
     if (entry.bloomMiss) {
       stats.bloomMisses++;
       stats.bloomMissKeys.push(serializedKeys[i]);
       continue;
     }
-    if (
-      entry.value === null &&
-      (entry.ttlSecondsRemaining === null || entry.ttlSecondsRemaining === -2)
-    ) {
+    if (isCacheMiss(entry)) {
       indices.push(i);
       keys.push(normalizedKeys[i]);
       stats.missKeys.push(serializedKeys[i]);
