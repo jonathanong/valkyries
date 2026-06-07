@@ -8,7 +8,11 @@ import {
 } from "../../idempotency-key.mts";
 import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
-const rand = () => Math.random().toString(36).slice(2, 10);
+let unique = 0;
+const rand = () => {
+  unique += 1;
+  return unique.toString(36);
+};
 
 describe("idempotency-key", () => {
   it("getAndDelete atomically returns and deletes values", async () => {
