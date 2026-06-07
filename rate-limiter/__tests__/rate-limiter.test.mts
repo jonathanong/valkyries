@@ -3,6 +3,7 @@ import { rateLimiterValkeyClient } from "../../clients.mts";
 import { valkeyEvents } from "../../events.mts";
 import { it, expect, describe, vi } from "vitest";
 import assert from "node:assert";
+import { randomUUID } from "node:crypto";
 import type { GlideClient } from "@valkey/valkey-glide";
 import type { RateLimiterWindow } from "../../types.mts";
 
@@ -515,8 +516,8 @@ describe("rate-limiter.generated", () => {
   });
 
   it("RateLimiter.addAndCheckWindows capped windows do not churn after threshold", async () => {
-    const id = `capped-${Math.random().toString(36).slice(2)}`;
-    const prefix = `test-window-capped-${Math.random().toString(36).slice(2)}`;
+    const id = `capped-${randomUUID()}`;
+    const prefix = `test-window-capped-${randomUUID()}`;
     const window = testWindow({ prefix, hashTag: id, threshold: 2, skipWriteWhenLimited: true });
     const key = RateLimiter.getWindowKey(window);
     try {
@@ -539,8 +540,8 @@ describe("rate-limiter.generated", () => {
   });
 
   it("RateLimiter.addAndCheckWindows capped windows record the threshold-crossing request", async () => {
-    const id = `capped-cross-${Math.random().toString(36).slice(2)}`;
-    const prefix = `test-window-capped-cross-${Math.random().toString(36).slice(2)}`;
+    const id = `capped-cross-${randomUUID()}`;
+    const prefix = `test-window-capped-cross-${randomUUID()}`;
     const window = testWindow({ prefix, hashTag: id, threshold: 1, skipWriteWhenLimited: true });
     const key = RateLimiter.getWindowKey(window);
     try {
@@ -555,9 +556,9 @@ describe("rate-limiter.generated", () => {
   });
 
   it("RateLimiter.addAndCheckWindows stop-on-limited skips later windows after capped hit", async () => {
-    const id = `capped-stop-${Math.random().toString(36).slice(2)}`;
-    const prefixA = `test-window-capped-stop-a-${Math.random().toString(36).slice(2)}`;
-    const prefixB = `test-window-capped-stop-b-${Math.random().toString(36).slice(2)}`;
+    const id = `capped-stop-${randomUUID()}`;
+    const prefixA = `test-window-capped-stop-a-${randomUUID()}`;
+    const prefixB = `test-window-capped-stop-b-${randomUUID()}`;
     const capped = testWindow({
       prefix: prefixA,
       hashTag: id,
