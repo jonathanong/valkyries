@@ -325,11 +325,33 @@ describe("lua scripts", () => {
       expect(
         await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAddAndCheckWindows, {
           keys,
-          args: ["record-all", "30", "3", "a-3", "30", "3", "b-3"],
+          args: ["record-all", "30", "3", "0", "a-3", "30", "3", "0", "b-3"],
         }),
-      ).toEqual([3, 3, 1]);
+      ).toEqual([3, 3, 1, 1, 1]);
     } finally {
       await rateLimiterValkeyClient.unlink(keys);
+    }
+  });
+
+  it("skips writes for capped rate limiter windows that are already limited", async () => {
+    const id = uniqueId("rate-capped");
+    const key = `rate-limiter:lua-capped:{${id}}`;
+    try {
+      expect(
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAddAndCheckWindows, {
+          keys: [key],
+          args: ["record-all", "30", "1", "1", "capped-1"],
+        }),
+      ).toEqual([1, 1, 1]);
+      expect(
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterAddAndCheckWindows, {
+          keys: [key],
+          args: ["record-all", "30", "1", "1", "capped-2"],
+        }),
+      ).toEqual([1, 1, 0]);
+      expect(Number(await rateLimiterValkeyClient.customCommand(["ZCARD", key]))).toBe(1);
+    } finally {
+      await rateLimiterValkeyClient.unlink([key]);
     }
   });
 });

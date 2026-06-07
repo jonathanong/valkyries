@@ -5,7 +5,7 @@
 Key format:
 
 ```txt
-rate-limiter:{prefix}:{id}
+rate-limiter:<prefix>:{<id>}
 ```
 
 Use `addAndCheck(ids, threshold)` for request paths. It atomically adds an event, removes expired events, counts the current window, and returns:
@@ -99,6 +99,8 @@ Records and checks heterogeneous windows in one Lua script call.
 - `limited` is `true` when any post-add count is greater than or equal to its window threshold.
 - `mode: "record-all"` records every window and is the default.
 - `mode: "stop-on-limited"` stops recording later windows after an earlier window is limited.
+- `skipWriteWhenLimited: true` on a window trims expired entries and checks the current count before writing. If the window is already at or above its threshold, that window returns its current count and does not add another sorted-set member.
+- The request that reaches the threshold is still recorded and returns the post-add count.
 - All windows must share the same effective hash tag: `hashTag ?? id`.
 - Window prefixes must not contain Redis hash tag braces, and generated Valkey keys must be unique.
 - Unexpected Valkey response types fail open with zero counts.
@@ -107,6 +109,60 @@ Example:
 
 ```ts
 const { counts, limited } = await limiter.addAndCheck(["ip:127.0.0.1"], 10);
+```
+
+Scarce provider quota windows can avoid member churn after a long-window quota is capped:
+
+```ts
+const month = "2026-06";
+
+const result = await RateLimiter.addAndCheckWindows(
+  [
+    {
+      prefix: "web-risk-minute",
+      id: "global",
+      hashTag: month,
+      ttlSeconds: 60,
+      threshold: 5001,
+    },
+    {
+      prefix: "web-risk-month",
+      id: "",
+      hashTag: month,
+      ttlSeconds: 31 * 24 * 60 * 60,
+      threshold: 90001,
+      skipWriteWhenLimited: true,
+    },
+  ],
+  { mode: "stop-on-limited" },
+);
+```
+
+## `RateLimiter.getWindowKey(window)`
+
+```ts
+RateLimiter.getWindowKey(window: RateLimiterWindow): string
+```
+
+Returns the Valkey sorted-set key for a multi-window definition. Use this to assert Redis Cluster compatibility and stable quota bucket shapes without duplicating key logic.
+
+```ts
+RateLimiter.getWindowKey({
+  prefix: "web-risk-month",
+  id: "",
+  hashTag: "2026-06",
+  ttlSeconds: 31 * 24 * 60 * 60,
+  threshold: 90001,
+});
+// "rate-limiter:web-risk-month:{2026-06}"
+```
+
+Key shapes:
+
+```txt
+rate-limiter:<prefix>:{<id>}
+rate-limiter:<prefix>:{<hashTag>}:<id>
+rate-limiter:<prefix>:{<hashTag>}
 ```
 
 ## `isRateLimited(ids, threshold, ttlSeconds?)`
@@ -148,7 +204,7 @@ limiter.getKey(key: string): string
 Returns the Valkey sorted-set key for an ID:
 
 ```txt
-rate-limiter:{prefix}:{id}
+rate-limiter:<prefix>:{<id>}
 ```
 
 ## `invalidate()`

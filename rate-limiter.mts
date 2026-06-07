@@ -184,7 +184,7 @@ export class RateLimiter {
     // eslint-disable-next-line unicorn/no-new-array
     const keys = new Array<string>(len);
     // eslint-disable-next-line unicorn/no-new-array
-    const args = new Array<string>(len * 3 + 1);
+    const args = new Array<string>(len * 4 + 1);
 
     // Unique-per-window UUID + index prevents predictability/collisions.
     const base = randomUUID();
@@ -192,9 +192,10 @@ export class RateLimiter {
     let offset = 1;
     for (let i = 0; i < len; i++) {
       const window = windows[i];
-      keys[i] = getWindowKey(window);
+      keys[i] = RateLimiter.getWindowKey(window);
       args[offset++] = String(window.ttlSeconds);
       args[offset++] = String(window.threshold);
+      args[offset++] = window.skipWriteWhenLimited ? "1" : "0";
       args[offset++] = `${base}-${i}`;
     }
 
@@ -217,8 +218,22 @@ export class RateLimiter {
     }
 
     const limited = normalizeCountResult(results[len]) === 1;
-    emitWindowEvents(windows, counts, mode);
+    // eslint-disable-next-line unicorn/no-new-array
+    const wrote = new Array<boolean>(len);
+    const writeFlagOffset = len + 1;
+    for (let i = 0; i < len; i++) {
+      const writeFlag = results[writeFlagOffset + i];
+      wrote[i] = writeFlag === undefined || normalizeCountResult(writeFlag) !== 0;
+    }
+
+    emitWindowEvents(windows, counts, wrote, mode);
     return { counts, limited };
+  }
+
+  static getWindowKey(window: RateLimiterWindow): string {
+    const hashTag = window.hashTag ?? window.id;
+    const suffix = window.hashTag && window.id ? `:${window.id}` : "";
+    return `${NAMESPACE}:${window.prefix}:{${hashTag}}${suffix}`;
   }
 }
 
@@ -251,15 +266,10 @@ function validateUniqueKeys(keys: string[]): void {
   }
 }
 
-function getWindowKey(window: RateLimiterWindow): string {
-  const hashTag = window.hashTag ?? window.id;
-  const suffix = window.hashTag && window.id ? `:${window.id}` : "";
-  return `${NAMESPACE}:${window.prefix}:{${hashTag}}${suffix}`;
-}
-
 function emitWindowEvents(
   windows: RateLimiterWindow[],
   counts: number[],
+  wrote: boolean[],
   mode: RateLimiterAddAndCheckWindowsOptions["mode"],
 ): void {
   let priorWindowLimited = false;
@@ -268,7 +278,7 @@ function emitWindowEvents(
     const id = window.id || String(window.hashTag);
     /* v8 ignore next -- when counts is derived from scripts it is always fully populated, so the ?? 0 fallback is a defensive typeguard that won't execute */
     const count = counts[i] ?? 0;
-    emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
+    if (wrote[i]) emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
     emitValkeyEvent("rate-limiter:get", {
       prefix: window.prefix,
       ids: [id],

@@ -514,6 +514,71 @@ describe("rate-limiter.generated", () => {
     }
   });
 
+  it("RateLimiter.addAndCheckWindows capped windows do not churn after threshold", async () => {
+    const id = `capped-${Math.random().toString(36).slice(2)}`;
+    const prefix = `test-window-capped-${Math.random().toString(36).slice(2)}`;
+    const window = testWindow({ prefix, hashTag: id, threshold: 2, skipWriteWhenLimited: true });
+    const key = RateLimiter.getWindowKey(window);
+    try {
+      await expect(RateLimiter.addAndCheckWindows([window])).resolves.toEqual({
+        counts: [1],
+        limited: false,
+      });
+      await expect(RateLimiter.addAndCheckWindows([window])).resolves.toEqual({
+        counts: [2],
+        limited: true,
+      });
+      await expect(RateLimiter.addAndCheckWindows([window])).resolves.toEqual({
+        counts: [2],
+        limited: true,
+      });
+      await expect(getSetSize(key)).resolves.toBe(2);
+    } finally {
+      await rateLimiterValkeyClient.unlink([key]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows capped windows record the threshold-crossing request", async () => {
+    const id = `capped-cross-${Math.random().toString(36).slice(2)}`;
+    const prefix = `test-window-capped-cross-${Math.random().toString(36).slice(2)}`;
+    const window = testWindow({ prefix, hashTag: id, threshold: 1, skipWriteWhenLimited: true });
+    const key = RateLimiter.getWindowKey(window);
+    try {
+      await expect(RateLimiter.addAndCheckWindows([window])).resolves.toEqual({
+        counts: [1],
+        limited: true,
+      });
+      await expect(getSetSize(key)).resolves.toBe(1);
+    } finally {
+      await rateLimiterValkeyClient.unlink([key]);
+    }
+  });
+
+  it("RateLimiter.addAndCheckWindows stop-on-limited skips later windows after capped hit", async () => {
+    const id = `capped-stop-${Math.random().toString(36).slice(2)}`;
+    const prefixA = `test-window-capped-stop-a-${Math.random().toString(36).slice(2)}`;
+    const prefixB = `test-window-capped-stop-b-${Math.random().toString(36).slice(2)}`;
+    const capped = testWindow({
+      prefix: prefixA,
+      hashTag: id,
+      threshold: 1,
+      skipWriteWhenLimited: true,
+    });
+    const later = testWindow({ prefix: prefixB, hashTag: id, ttlSeconds: 3600 });
+    const cappedKey = RateLimiter.getWindowKey(capped);
+    const laterKey = RateLimiter.getWindowKey(later);
+    try {
+      await RateLimiter.addAndCheckWindows([capped]);
+      await expect(
+        RateLimiter.addAndCheckWindows([capped, later], { mode: "stop-on-limited" }),
+      ).resolves.toEqual({ counts: [1, 0], limited: true });
+      await expect(getSetSize(cappedKey)).resolves.toBe(1);
+      await expect(getSetSize(laterKey)).resolves.toBe(0);
+    } finally {
+      await rateLimiterValkeyClient.unlink([cappedKey, laterKey]);
+    }
+  });
+
   it("RateLimiter.addAndCheckWindows validates Redis Cluster hash tag compatibility", async () => {
     await expect(
       RateLimiter.addAndCheckWindows([
@@ -521,6 +586,23 @@ describe("rate-limiter.generated", () => {
         { prefix: "b", id: "two", ttlSeconds: 60, threshold: 10 },
       ]),
     ).rejects.toThrow("RateLimiter windows must share one Redis Cluster hash tag");
+  });
+
+  it("RateLimiter.addAndCheckWindows accepts shared hash tags across different ids", async () => {
+    const invokeScript = vi.fn().mockResolvedValue([1, 1, 0, 1, 1]);
+    const client = {
+      invokeScript,
+    } as unknown as GlideClient;
+
+    await expect(
+      RateLimiter.addAndCheckWindows(
+        [
+          testWindow({ prefix: "shared-a", id: "minute", hashTag: "web-risk-month:2026-06" }),
+          testWindow({ prefix: "shared-b", id: "month", hashTag: "web-risk-month:2026-06" }),
+        ],
+        { client },
+      ),
+    ).resolves.toEqual({ counts: [1, 1], limited: false });
   });
 
   it("RateLimiter.addAndCheckWindows validates window limits", async () => {
@@ -577,6 +659,35 @@ describe("rate-limiter.generated", () => {
       keys: ["rate-limiter:mock-id-window:{global}"],
       args: expect.any(Array),
     });
+  });
+
+  it("RateLimiter.getWindowKey returns stable multi-window key shapes", () => {
+    expect(
+      RateLimiter.getWindowKey({
+        prefix: "web-risk-user",
+        id: "user-1",
+        ttlSeconds: 60,
+        threshold: 10,
+      }),
+    ).toBe("rate-limiter:web-risk-user:{user-1}");
+    expect(
+      RateLimiter.getWindowKey({
+        prefix: "web-risk-minute",
+        id: "global",
+        hashTag: "2026-06",
+        ttlSeconds: 60,
+        threshold: 10,
+      }),
+    ).toBe("rate-limiter:web-risk-minute:{2026-06}:global");
+    expect(
+      RateLimiter.getWindowKey({
+        prefix: "web-risk-month",
+        id: "",
+        hashTag: "2026-06",
+        ttlSeconds: 2_678_400,
+        threshold: 90_001,
+      }),
+    ).toBe("rate-limiter:web-risk-month:{2026-06}");
   });
 
   it("RateLimiter.addAndCheckWindows emits hashTag when id is empty", async () => {

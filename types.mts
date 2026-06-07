@@ -26,6 +26,8 @@ export type RateLimiterWindow = {
   threshold: number;
   /** Optional Redis Cluster hash tag. All windows in one call must share the same hash tag. */
   hashTag?: string;
+  /** When true, already-limited windows are counted without writing another member. */
+  skipWriteWhenLimited?: boolean;
 };
 
 export type RateLimiterAddAndCheckWindowsOptions = {
