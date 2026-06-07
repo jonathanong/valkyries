@@ -20,6 +20,7 @@ export default defineConfig({
         "errors.mts",
         "key-normalization.mts",
         "cache-utils.mts",
+        "cache-metrics.mts",
         "scripts.mts",
         "retry.mts",
       ],
