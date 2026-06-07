@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cacheValkeyClient } from "./clients.mts";
 import { loadScript, registerScript } from "./scripts.mts";
-import type { GlideClient } from "@valkey/valkey-glide";
+import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
 const DEFAULT_PROCESSING_PREFIX = "processing";
 const DEFAULT_COMPLETED_VALUE = "completed";
@@ -50,7 +50,9 @@ export async function getAndDelete(
   options: GetAndDeleteOptions = {},
 ): Promise<string | null> {
   validateKey(key);
-  const result = await (options.client ?? cacheValkeyClient).customCommand(["GETDEL", key]);
+  const result = await (options.client ?? cacheValkeyClient).customCommand(["GETDEL", key], {
+    decoder: Decoder.String,
+  });
   if (result == null || result === false) return null;
   return stringifyValkeyResult(result);
 }
@@ -69,6 +71,7 @@ export async function reserveIdempotencyKey(
   const result = await settings.client.invokeScript(idempotencyKeyReserveScript, {
     keys: [key],
     args: [String(ttlSeconds), settings.processingPrefix, settings.completedValue, token],
+    decoder: Decoder.String,
   });
 
   if (result === RESERVED_RESULT) return { state: "reserved", token };
@@ -95,6 +98,7 @@ export async function completeIdempotencyKey(
       processingValue(settings.processingPrefix, token),
       settings.completedValue,
     ],
+    decoder: Decoder.String,
   });
 
   if (result === settings.completedValue) return "completed";
@@ -114,6 +118,7 @@ export async function releaseIdempotencyKey(
   const result = await settings.client.invokeScript(idempotencyKeyReleaseIfCurrentScript, {
     keys: [key],
     args: [processingValue(settings.processingPrefix, token)],
+    decoder: Decoder.String,
   });
 
   return result === 1 || result === 1n;

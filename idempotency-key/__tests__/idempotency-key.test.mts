@@ -6,7 +6,7 @@ import {
   releaseIdempotencyKey,
   reserveIdempotencyKey,
 } from "../../idempotency-key.mts";
-import type { GlideClient } from "@valkey/valkey-glide";
+import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
 const rand = () => Math.random().toString(36).slice(2, 10);
 
@@ -29,7 +29,9 @@ describe("idempotency-key", () => {
 
     await expect(getAndDelete("consume-once:key", { client })).resolves.toBe("value");
 
-    expect(customCommand).toHaveBeenCalledWith(["GETDEL", "consume-once:key"]);
+    expect(customCommand).toHaveBeenCalledWith(["GETDEL", "consume-once:key"], {
+      decoder: Decoder.String,
+    });
   });
 
   it("reserves once and allows reuse after release", async () => {
@@ -163,6 +165,26 @@ describe("idempotency-key", () => {
       await expect(cacheValkeyClient.get(key)).resolves.toBe("done");
     } finally {
       await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("requests string decoding for status-returning script calls", async () => {
+    const invokeScript = vi
+      .fn<GlideClient["invokeScript"]>()
+      .mockResolvedValueOnce("reserved")
+      .mockResolvedValueOnce("completed")
+      .mockResolvedValueOnce(1);
+    const client = { invokeScript } as unknown as GlideClient;
+
+    await expect(reserveIdempotencyKey("key", 60, { client, token: "token" })).resolves.toEqual({
+      state: "reserved",
+      token: "token",
+    });
+    await expect(completeIdempotencyKey("key", "token", 60, { client })).resolves.toBe("completed");
+    await expect(releaseIdempotencyKey("key", "token", { client })).resolves.toBe(true);
+
+    for (const call of invokeScript.mock.calls) {
+      expect(call[1]).toMatchObject({ decoder: Decoder.String });
     }
   });
 
