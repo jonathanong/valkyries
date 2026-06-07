@@ -38,7 +38,11 @@ for i, key in ipairs(KEYS) do
     else
       redis.call('ZADD', key, now, randomElement)
       redis.call('EXPIRE', key, ttl)
-      count = redis.call('ZCOUNT', key, '(' .. minScore, now)
+      if skipWriteWhenLimited then
+        count = count + 1
+      else
+        count = redis.call('ZCOUNT', key, '(' .. minScore, now)
+      end
       table.insert(wrote, 1)
     end
 
