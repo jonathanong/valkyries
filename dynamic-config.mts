@@ -31,6 +31,11 @@ export class DynamicConfig {
   fieldTypes: Record<string, DynamicConfigFieldType>;
   defaultFields: Record<string, DynamicConfigField>;
   initialization: Promise<void>;
+  private fieldsConfig: {
+    name: string;
+    type: DynamicConfigFieldType;
+    defaultValue: DynamicConfigField;
+  }[];
   private client: GlideClient;
   private closed: boolean = false;
   private lastRefresh: number = 0;
@@ -46,6 +51,18 @@ export class DynamicConfig {
     this.defaultFields = options.defaultFields;
     this.client = options.client ?? dynamicConfigValkeyClient;
     this.fields = new Map();
+
+    const keys = Object.keys(this.fieldTypes);
+    // eslint-disable-next-line unicorn/no-new-array
+    this.fieldsConfig = new Array(keys.length);
+    for (let i = 0; i < keys.length; i++) {
+      const name = keys[i];
+      this.fieldsConfig[i] = {
+        name,
+        type: this.fieldTypes[name],
+        defaultValue: this.defaultFields[name],
+      };
+    }
     /* v8 ignore next 3 -- duplicate construction is guarded only outside NODE_ENV=test. */
     if (!isTest && dynamicConfigs.some((config) => config.key === this.key)) {
       throw new Error(`DynamicConfig already initialized: ${this.key}`);
@@ -65,8 +82,7 @@ export class DynamicConfig {
     const fieldsMap = await this.getFieldsMap();
     const { toApply, writeArgs } = buildMissingDefaultWrites({
       fieldsMap,
-      fieldTypes: this.fieldTypes,
-      defaultFields: this.defaultFields,
+      fieldsConfig: this.fieldsConfig,
     });
     await writeDynamicConfigFields({ key: this.key, args: writeArgs, client: this.client });
 
@@ -106,8 +122,7 @@ export class DynamicConfig {
     await applyFieldsFromMap({
       fields: this.fields,
       fieldsMap,
-      fieldTypes: this.fieldTypes,
-      defaultFields: this.defaultFields,
+      fieldsConfig: this.fieldsConfig,
       skipFieldNames,
     });
   }
