@@ -45,8 +45,15 @@ Dynamic config scripts:
 
 - `dynamic-config-set-fields.lua`
 
+Idempotency key scripts:
+
+- `idempotency-key-complete-if-current.lua`
+- `idempotency-key-release-if-current.lua`
+- `idempotency-key-reserve.lua`
+
 Rate limiter scripts:
 
 - `rate-limiter-add.lua`
 - `rate-limiter-add-and-check.lua`
+- `rate-limiter-add-and-check-windows.lua`
 - `rate-limiter-get.lua`

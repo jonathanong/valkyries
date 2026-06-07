@@ -13,6 +13,10 @@ describe("public api", () => {
     expect(api.ValkeyBloomFilter).toBeTypeOf("function");
     expect(api.DynamicConfig).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
+    expect(api.getAndDelete).toBeTypeOf("function");
+    expect(api.reserveIdempotencyKey).toBeTypeOf("function");
+    expect(api.completeIdempotencyKey).toBeTypeOf("function");
+    expect(api.releaseIdempotencyKey).toBeTypeOf("function");
     expect(api.closeValkeyClients).toBeTypeOf("function");
     expect(api.isRetryableValkeyError).toBeTypeOf("function");
     expect(api.retryValkeyOperation).toBeTypeOf("function");

@@ -42,6 +42,11 @@
       "import": "./dist/dynamic-config.mjs",
       "default": "./dist/dynamic-config.mjs"
     },
+    "./idempotency-key": {
+      "types": "./dist/idempotency-key.d.mts",
+      "import": "./dist/idempotency-key.mjs",
+      "default": "./dist/idempotency-key.mjs"
+    },
     "./rate-limiter": {
       "types": "./dist/rate-limiter.d.mts",
       "import": "./dist/rate-limiter.mjs",

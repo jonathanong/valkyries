@@ -8,6 +8,7 @@ This is the entry point for the public `valkyries` API. Detailed API documentati
 - [`ValkeyBloomFilter`](bloom-filters.md) - Bloom filter lookup, writes, readiness markers, streaming rebuilds, and key helpers.
 - [`DynamicConfig`](dynamic-config.md) - distributed runtime fields backed by Valkey hashes and pub/sub updates.
 - [`RateLimiter`](rate-limiter.md) - sliding-window rate limiting backed by sorted sets and Lua scripts.
+- [Idempotency keys](idempotency-key.md) - consume-once values and token-fenced idempotency-key lifecycle helpers.
 
 ## Supporting APIs
 
@@ -25,6 +26,8 @@ import {
   ValkeyBloomFilter,
   DynamicConfig,
   RateLimiter,
+  getAndDelete,
+  reserveIdempotencyKey,
   closeValkeyClients,
 } from "valkyries";
 ```
@@ -35,6 +38,7 @@ Supported subpath exports:
 - `valkyries/cache`
 - `valkyries/bloom-filter`
 - `valkyries/dynamic-config`
+- `valkyries/idempotency-key`
 - `valkyries/rate-limiter`
 
 `valkyries` is ESM-only and requires Node.js 24 or newer.

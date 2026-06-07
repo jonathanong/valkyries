@@ -8,6 +8,12 @@
     "rootDir": ".",
     "sourceMap": true
   },
-  "include": ["*.mts", "cache/**/*.mts", "bloom-filter/**/*.mts", "dynamic-config/**/*.mts"],
+  "include": [
+    "*.mts",
+    "cache/**/*.mts",
+    "bloom-filter/**/*.mts",
+    "dynamic-config/**/*.mts",
+    "idempotency-key/**/*.mts"
+  ],
   "exclude": ["**/__tests__/**", "vitest.config.mts", "node_modules", "dist", "coverage"]
 }
