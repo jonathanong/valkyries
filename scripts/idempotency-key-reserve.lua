@@ -18,6 +18,9 @@ if existing then
   if existing == completedValue then
     return completedValue
   end
+  if existing == processingPrefix .. ':' .. token then
+    return 'reserved'
+  end
   return processingPrefix
 end
 

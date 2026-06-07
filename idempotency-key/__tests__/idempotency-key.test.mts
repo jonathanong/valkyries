@@ -49,6 +49,25 @@ describe("idempotency-key", () => {
     }
   });
 
+  it("treats same-token reservation retries as reserved", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      await expect(reserveIdempotencyKey(key, 60, { token: "token-1" })).resolves.toEqual({
+        state: "reserved",
+        token: "token-1",
+      });
+      await expect(reserveIdempotencyKey(key, 60, { token: "token-1" })).resolves.toEqual({
+        state: "reserved",
+        token: "token-1",
+      });
+      await expect(reserveIdempotencyKey(key, 60, { token: "token-2" })).resolves.toEqual({
+        state: "processing",
+      });
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
   it("returns completed for duplicate keys after completion", async () => {
     const key = `idempotency:{${rand()}}`;
     try {
@@ -56,6 +75,7 @@ describe("idempotency-key", () => {
       expect(reservation.state).toBe("reserved");
       if (reservation.state !== "reserved") throw new Error("reservation failed");
 
+      await expect(completeIdempotencyKey(key, reservation.token, 60)).resolves.toBe("completed");
       await expect(completeIdempotencyKey(key, reservation.token, 60)).resolves.toBe("completed");
       await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "completed" });
       await expectPositiveTtlSeconds(key, 60);
@@ -161,6 +181,15 @@ describe("idempotency-key", () => {
         completedValue: "same",
       }),
     ).rejects.toThrow("processingPrefix must not equal completedValue");
+    await expect(
+      reserveIdempotencyKey("key", 60, { processingPrefix: "reserved" }),
+    ).rejects.toThrow("processingPrefix must not equal a script result sentinel");
+    await expect(
+      completeIdempotencyKey("key", "token", 60, { completedValue: "missing" }),
+    ).rejects.toThrow("completedValue must not equal a script result sentinel");
+    await expect(
+      releaseIdempotencyKey("key", "token", { completedValue: "processing:token" }),
+    ).rejects.toThrow("completedValue must not be in the processing namespace");
   });
 
   it("throws on unexpected script responses", async () => {

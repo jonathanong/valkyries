@@ -234,6 +234,12 @@ describe("lua scripts", () => {
       expect(
         await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
           keys: [key],
+          args: ["30", "processing", "completed", "token-1"],
+        }),
+      ).toBe("reserved");
+      expect(
+        await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
+          keys: [key],
           args: ["30", "processing", "completed", "token-2"],
         }),
       ).toBe("processing");
@@ -243,6 +249,12 @@ describe("lua scripts", () => {
           args: ["30", "processing:wrong", "completed"],
         }),
       ).toBe("changed");
+      expect(
+        await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyCompleteIfCurrent, {
+          keys: [key],
+          args: ["30", "processing:token-1", "completed"],
+        }),
+      ).toBe("completed");
       expect(
         await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyCompleteIfCurrent, {
           keys: [key],

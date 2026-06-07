@@ -8,6 +8,7 @@ const DEFAULT_COMPLETED_VALUE = "completed";
 const RESERVED_RESULT = "reserved";
 const MISSING_RESULT = "missing";
 const CHANGED_RESULT = "changed";
+const SCRIPT_RESULT_VALUES = new Set([RESERVED_RESULT, MISSING_RESULT, CHANGED_RESULT]);
 
 const idempotencyKeyReserveScript = registerScript(
   loadScript("idempotency-key-reserve.lua", import.meta.url),
@@ -125,8 +126,13 @@ function normalizeIdempotencyOptions(
   const completedValue = options.completedValue ?? DEFAULT_COMPLETED_VALUE;
   validateNonEmpty("processingPrefix", processingPrefix);
   validateNonEmpty("completedValue", completedValue);
+  validateStoredStateValue("processingPrefix", processingPrefix);
+  validateStoredStateValue("completedValue", completedValue);
   if (processingPrefix === completedValue) {
     throw new Error("processingPrefix must not equal completedValue");
+  }
+  if (completedValue.startsWith(`${processingPrefix}:`)) {
+    throw new Error("completedValue must not be in the processing namespace");
   }
   return {
     client: options.client ?? cacheValkeyClient,
@@ -149,6 +155,12 @@ function validateTtlSeconds(ttlSeconds: number): void {
 
 function validateNonEmpty(name: string, value: string): void {
   if (!value) throw new Error(`${name} must not be empty`);
+}
+
+function validateStoredStateValue(name: string, value: string): void {
+  if (SCRIPT_RESULT_VALUES.has(value)) {
+    throw new Error(`${name} must not equal a script result sentinel`);
+  }
 }
 
 function stringifyValkeyResult(result: unknown): string {

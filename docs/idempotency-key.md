@@ -95,4 +95,8 @@ try {
 - `key`, `token`, `processingPrefix`, and `completedValue` must be non-empty.
 - `ttlSeconds` must be greater than `0`.
 - `processingPrefix` must not equal `completedValue`.
+- `processingPrefix` and `completedValue` must not equal script result sentinels:
+  `reserved`, `missing`, or `changed`.
+- `completedValue` must not be inside the processing namespace
+  (`${processingPrefix}:...`).
 - Valkey/client errors throw instead of failing open.

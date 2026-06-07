@@ -15,6 +15,9 @@ local existing = redis.call('GET', KEYS[1])
 if not existing then
   return 'missing'
 end
+if existing == completedValue then
+  return completedValue
+end
 if existing ~= expectedProcessingValue then
   return 'changed'
 end
