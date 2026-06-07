@@ -16,6 +16,46 @@ export async function rebuild(state: BloomFilterState, items: string[]): Promise
   );
 }
 
+async function processBatch(state: BloomFilterState, batch: string[]): Promise<void> {
+  // ⚡ Bolt Optimization:
+  // What: Concurrent BF.MADD chunk processing
+  // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
+  // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
+  const chunks = Array.from(chunkItems(batch, state.batchSize));
+  const results: boolean[] = Array.from({ length: chunks.length }, () => false);
+  let firstError: unknown;
+
+  // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
+  // We must also wait for all in-flight commands in a concurrent set to settle before
+  // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
+  for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
+    const settled = await Promise.allSettled(
+      slice.map((chunk) => state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk])),
+    );
+
+    for (let j = 0; j < settled.length; j++) {
+      const res = settled[j];
+      if (res.status === "fulfilled") {
+        results[start + j] = true;
+      } else if (firstError === undefined) {
+        firstError = res.reason;
+      }
+    }
+
+    // Emit events for this concurrent slice in order before moving to the next slice
+    // or throwing an error, maintaining sequential event ordering for consumers.
+    for (let j = 0; j < settled.length; j++) {
+      if (results[start + j]) {
+        emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
+      }
+    }
+
+    if (firstError !== undefined) break;
+  }
+
+  if (firstError !== undefined) throw firstError;
+}
+
 export async function rebuildFromStream(
   state: BloomFilterState,
   batches: AsyncIterable<string[]>,
@@ -28,45 +68,7 @@ export async function rebuildFromStream(
   });
   try {
     for await (const batch of batches) {
-      // ⚡ Bolt Optimization:
-      // What: Concurrent BF.MADD chunk processing
-      // Why: Chunks are commutative. Sending them concurrently reduces wall-clock latency via pipelining/overlap.
-      // Impact: Performance improvement proportional to batch size by fanning out chunked additions.
-      const chunks = Array.from(chunkItems(batch, state.batchSize));
-      const results: boolean[] = Array.from({ length: chunks.length }, () => false);
-      let firstError: any;
-
-      // We process chunks with a fixed concurrency limit to avoid overloading the client/network.
-      // We must also wait for all in-flight commands in a concurrent set to settle before
-      // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
-      for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
-        const settled = await Promise.allSettled(
-          slice.map((chunk) =>
-            state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]),
-          ),
-        );
-
-        for (let j = 0; j < settled.length; j++) {
-          const res = settled[j];
-          if (res.status === "fulfilled") {
-            results[start + j] = true;
-          } else if (firstError === undefined) {
-            firstError = res.reason;
-          }
-        }
-
-        // Emit events for this concurrent slice in order before moving to the next slice
-        // or throwing an error, maintaining sequential event ordering for consumers.
-        for (let j = 0; j < settled.length; j++) {
-          if (results[start + j]) {
-            emitValkeyEvent("bloom-filter:add", { name: state.name, items: slice[j] });
-          }
-        }
-
-        if (firstError !== undefined) break;
-      }
-
-      if (firstError !== undefined) throw firstError;
+      await processBatch(state, batch);
     }
     await state.client.rename(state.buildingKey, state.liveKey);
   } catch (error) {
