@@ -1,0 +1,196 @@
+import { describe, expect, it, vi } from "vitest";
+import { cacheValkeyClient } from "../../clients.mts";
+import {
+  completeIdempotencyKey,
+  getAndDelete,
+  releaseIdempotencyKey,
+  reserveIdempotencyKey,
+} from "../../idempotency-key.mts";
+import type { GlideClient } from "@valkey/valkey-glide";
+
+const rand = () => Math.random().toString(36).slice(2, 10);
+
+describe("idempotency-key", () => {
+  it("getAndDelete atomically returns and deletes values", async () => {
+    const key = `consume-once:{${rand()}}`;
+    try {
+      await cacheValkeyClient.set(key, "challenge");
+
+      await expect(getAndDelete(key)).resolves.toBe("challenge");
+      await expect(getAndDelete(key)).resolves.toBeNull();
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("getAndDelete uses native GETDEL with the provided client", async () => {
+    const customCommand = vi.fn<GlideClient["customCommand"]>().mockResolvedValue("value");
+    const client = { customCommand } as unknown as GlideClient;
+
+    await expect(getAndDelete("consume-once:key", { client })).resolves.toBe("value");
+
+    expect(customCommand).toHaveBeenCalledWith(["GETDEL", "consume-once:key"]);
+  });
+
+  it("reserves once and allows reuse after release", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      const reservation = await reserveIdempotencyKey(key, 60);
+      expect(reservation.state).toBe("reserved");
+      if (reservation.state !== "reserved") throw new Error("reservation failed");
+
+      await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "processing" });
+      await expect(releaseIdempotencyKey(key, reservation.token)).resolves.toBe(true);
+
+      const next = await reserveIdempotencyKey(key, 60);
+      expect(next.state).toBe("reserved");
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("returns completed for duplicate keys after completion", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      const reservation = await reserveIdempotencyKey(key, 60);
+      expect(reservation.state).toBe("reserved");
+      if (reservation.state !== "reserved") throw new Error("reservation failed");
+
+      await expect(completeIdempotencyKey(key, reservation.token, 60)).resolves.toBe("completed");
+      await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "completed" });
+      await expectPositiveTtlSeconds(key, 60);
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("allows only one concurrent reservation", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => reserveIdempotencyKey(key, 60)),
+      );
+
+      expect(results.filter((result) => result.state === "reserved")).toHaveLength(1);
+      expect(results.filter((result) => result.state === "processing")).toHaveLength(9);
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("does not let an old token complete or release a newer reservation", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      const first = await reserveIdempotencyKey(key, 60);
+      expect(first.state).toBe("reserved");
+      if (first.state !== "reserved") throw new Error("first reservation failed");
+
+      await cacheValkeyClient.unlink([key]);
+
+      const second = await reserveIdempotencyKey(key, 60);
+      expect(second.state).toBe("reserved");
+      if (second.state !== "reserved") throw new Error("second reservation failed");
+
+      await expect(completeIdempotencyKey(key, first.token, 60)).resolves.toBe("changed");
+      await expect(releaseIdempotencyKey(key, first.token)).resolves.toBe(false);
+      await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "processing" });
+
+      await expect(completeIdempotencyKey(key, second.token, 60)).resolves.toBe("completed");
+      await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "completed" });
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("returns missing when completing an absent reservation", async () => {
+    await expect(completeIdempotencyKey(`idempotency:{${rand()}}`, "token", 60)).resolves.toBe(
+      "missing",
+    );
+  });
+
+  it("reservation TTL expiry allows later reservation", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      await reserveIdempotencyKey(key, 1);
+      await waitFor(async () => (await cacheValkeyClient.get(key)) === null, 2_500);
+
+      const reservation = await reserveIdempotencyKey(key, 60);
+      expect(reservation.state).toBe("reserved");
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("supports custom values and deterministic reserve tokens", async () => {
+    const key = `idempotency:{${rand()}}`;
+    const options = {
+      processingPrefix: "pending",
+      completedValue: "done",
+      token: "token-1",
+    };
+    try {
+      await expect(reserveIdempotencyKey(key, 60, options)).resolves.toEqual({
+        state: "reserved",
+        token: "token-1",
+      });
+      await expect(cacheValkeyClient.get(key)).resolves.toBe("pending:token-1");
+      await expect(
+        completeIdempotencyKey(key, "token-1", 60, {
+          processingPrefix: "pending",
+          completedValue: "done",
+        }),
+      ).resolves.toBe("completed");
+      await expect(cacheValkeyClient.get(key)).resolves.toBe("done");
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("validates inputs", async () => {
+    await expect(getAndDelete("")).rejects.toThrow("key must not be empty");
+    await expect(reserveIdempotencyKey("key", 0)).rejects.toThrow(
+      "ttlSeconds must be greater than 0",
+    );
+    await expect(reserveIdempotencyKey("key", 60, { token: "" })).rejects.toThrow(
+      "token must not be empty",
+    );
+    await expect(completeIdempotencyKey("key", "", 60)).rejects.toThrow("token must not be empty");
+    await expect(
+      reserveIdempotencyKey("key", 60, {
+        processingPrefix: "same",
+        completedValue: "same",
+      }),
+    ).rejects.toThrow("processingPrefix must not equal completedValue");
+  });
+
+  it("throws on unexpected script responses", async () => {
+    const client = {
+      invokeScript: vi.fn().mockResolvedValue("weird"),
+    } as unknown as GlideClient;
+
+    await expect(reserveIdempotencyKey("key", 60, { client })).rejects.toThrow(
+      "Unexpected idempotency reserve state: weird",
+    );
+    await expect(completeIdempotencyKey("key", "token", 60, { client })).rejects.toThrow(
+      "Unexpected idempotency completion state: weird",
+    );
+  });
+});
+
+async function expectPositiveTtlSeconds(key: string, maxSeconds: number): Promise<void> {
+  const ttl = Number(await cacheValkeyClient.ttl(key));
+  expect(ttl).toBeGreaterThan(0);
+  expect(ttl).toBeLessThanOrEqual(maxSeconds);
+}
+
+async function waitFor(
+  condition: () => boolean | Promise<boolean>,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("condition timed out");
+}
