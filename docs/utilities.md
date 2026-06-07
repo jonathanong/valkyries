@@ -8,7 +8,7 @@ These helpers are exported from the package root for applications that need the 
 normalizeKey(key: string): string
 ```
 
-Trims and lowercases cache keys.
+Trims and lowercases cache keys, then replaces `{`, `}`, and `:` with `_`.
 
 ## `normalizeTtlResult(value)`
 
