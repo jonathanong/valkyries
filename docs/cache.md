@@ -62,7 +62,7 @@ For non-string keys, `keySerializer` is required.
 - `bloomFilter`: optional negative-lookup Bloom filter.
 - `bloomFilterEnabled`: optional per-call gate for Bloom filter checks.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package cache client.
-- `keySerializer`: converts keys to strings before trimming, lowercasing, and replacing `{`, `}`, and `:` with `_`.
+- `keySerializer`: converts keys to strings before trimming and lowercasing.
 
 The constructor throws when `prefix` is empty, `ttlSeconds` is not positive, or `staleTtlAge` is outside `0..1`.
 

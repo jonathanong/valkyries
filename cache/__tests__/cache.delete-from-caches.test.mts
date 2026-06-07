@@ -55,15 +55,15 @@ describe("ValkeyCache.deleteFromCaches", () => {
       expect(invokeScript).toHaveBeenCalledTimes(1);
       expect(invokeScript.mock.calls[0]?.[1]).toMatchObject({
         keys: [
-          "cache:numeric-delete:{numeric_7}",
+          "cache:numeric-delete:{numeric:7}",
           "cache:text-delete:{mixedcase}",
-          "cache:numeric-delete:invalidation:{numeric_7}",
+          "cache:numeric-delete:invalidation:{numeric:7}",
           "cache:text-delete:invalidation:{mixedcase}",
         ],
         args: ["2", "60"],
       });
       expect(events).toEqual([
-        { cacheName: "numeric-delete", keys: ["numeric_7"] },
+        { cacheName: "numeric-delete", keys: ["numeric:7"] },
         { cacheName: "text-delete", keys: ["mixedcase"] },
       ]);
     } finally {

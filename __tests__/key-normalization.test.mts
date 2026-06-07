@@ -3,32 +3,23 @@ import { describe, expect, it } from "vitest";
 import { normalizeKey } from "../key-normalization.mts";
 
 describe("normalizeKey", () => {
-  it("replaces curly braces with underscores", () => {
-    expect(normalizeKey("user:{123}")).toBe("user__123_");
-    expect(normalizeKey("{user}123")).toBe("_user_123");
+  it("trims whitespace from the beginning and end", () => {
+    expect(normalizeKey("  hello  ")).toBe("hello");
   });
 
-  it("replaces colons with underscores", () => {
-    expect(normalizeKey("user:profile:123")).toBe("user_profile_123");
-    expect(normalizeKey(":user:123:")).toBe("_user_123_");
+  it("converts uppercase characters to lowercase", () => {
+    expect(normalizeKey("HELLO")).toBe("hello");
   });
 
-  it("replaces both curly braces and colons with underscores", () => {
-    expect(normalizeKey("{user}:profile:{123}")).toBe("_user__profile__123_");
-  });
-
-  it("trims and lowercases keys before replacing delimiters", () => {
-    expect(normalizeKey("  AbC  ")).toBe("abc");
-    expect(normalizeKey(" {User}:Profile:{123} ")).toBe("_user__profile__123_");
-  });
-
-  it("does not modify keys without curly braces or colons", () => {
-    expect(normalizeKey("user_profile_123")).toBe("user_profile_123");
-    expect(normalizeKey("simplekey")).toBe("simplekey");
+  it("handles mixed case and whitespace", () => {
+    expect(normalizeKey("  HeLlO wOrLd  ")).toBe("hello world");
   });
 
   it("handles empty strings", () => {
     expect(normalizeKey("")).toBe("");
+  });
+
+  it("handles strings with only whitespace", () => {
     expect(normalizeKey("   ")).toBe("");
   });
 });

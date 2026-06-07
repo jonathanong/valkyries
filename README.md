@@ -50,7 +50,7 @@ const user = await getUser("user_123");
 await cache.invalidateCacheGetByAny("user_123");
 ```
 
-Cache keys are normalized with `trim().toLowerCase()`, then `{`, `}`, and `:` are replaced with `_`. Use `keySerializer` for composite keys.
+Cache keys are normalized with `trim().toLowerCase()`. Use `keySerializer` for composite keys.
 
 ## Bloom Filters
 
