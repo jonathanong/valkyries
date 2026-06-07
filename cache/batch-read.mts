@@ -46,12 +46,14 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         try {
           cachedEntries = await this.getValuesWithTtl(serializedKeys);
         } catch (error) {
-          this.handleReadError(error);
-          stats.misses = normalizedKeys.length;
-          stats.missKeys = serializedKeys;
-          const fallbackResults = await batchFn(normalizedKeys);
-          assertBatchResultLength(fallbackResults, normalizedKeys.length);
-          return scatter(Array.from(fallbackResults, (v) => v ?? null));
+          const fallbackResults = await this.handleBatchReadFallback(
+            error,
+            normalizedKeys,
+            serializedKeys,
+            batchFn,
+            stats,
+          );
+          return scatter(fallbackResults);
         }
         const cachedValues = cachedEntries.map((entry) => entry.value as T | null);
         const missing = collectMissingKeys(
@@ -65,19 +67,43 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         stats.hits = normalizedKeys.length - stats.misses - stats.bloomMisses;
         this.refreshStaleBatchEntries(serializedKeys, normalizedKeys, cachedEntries, batchFn);
         if (missing.keys.length === 0) return scatter(cachedValues);
-        const fetchedResults = await batchFn(missing.keys);
-        assertBatchResultLength(fetchedResults, missing.keys.length);
-        const results = mergeFetchedResults(cachedValues, missing.indices, fetchedResults);
-        const setEntries = missing.keys.map((key, i) => {
-          const value = fetchedResults[i] ?? null;
-          return { key, value, ttl: value === null ? this.nullTtl : undefined };
-        });
-        this.setBatchIfNotInvalidated(setEntries).catch(handleValkeyError);
+        const results = await this.fetchMissingAndSetValues(missing, cachedValues, batchFn);
         return scatter(results);
       } finally {
         this.trackBatchRead(start, stats);
       }
     };
+  }
+
+  private async handleBatchReadFallback<T>(
+    error: unknown,
+    normalizedKeys: K[],
+    serializedKeys: string[],
+    batchFn: (keys: K[]) => Promise<Array<T | null | undefined>>,
+    stats: BatchReadStats,
+  ): Promise<Array<T | null>> {
+    this.handleReadError(error);
+    stats.misses = normalizedKeys.length;
+    stats.missKeys = serializedKeys;
+    const fallbackResults = await batchFn(normalizedKeys);
+    assertBatchResultLength(fallbackResults, normalizedKeys.length);
+    return Array.from(fallbackResults, (v) => v ?? null);
+  }
+
+  private async fetchMissingAndSetValues<T>(
+    missing: { indices: number[]; keys: K[] },
+    cachedValues: Array<T | null>,
+    batchFn: (keys: K[]) => Promise<Array<T | null | undefined>>,
+  ): Promise<Array<T | null>> {
+    const fetchedResults = await batchFn(missing.keys);
+    assertBatchResultLength(fetchedResults, missing.keys.length);
+    const results = mergeFetchedResults(cachedValues, missing.indices, fetchedResults);
+    const setEntries = missing.keys.map((key, i) => {
+      const value = fetchedResults[i] ?? null;
+      return { key, value, ttl: value === null ? this.nullTtl : undefined };
+    });
+    this.setBatchIfNotInvalidated(setEntries).catch(handleValkeyError);
+    return results;
   }
 
   async getBatch(keys: K[]): Promise<Array<string | Buffer | Record<string, unknown> | null>> {
