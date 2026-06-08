@@ -35,7 +35,9 @@ describe("scripts", () => {
     const processOnceSpy = vi.spyOn(process, "once").mockImplementation(() => process);
 
     const { registerScript } = await import("../scripts.mts");
+    const { Script } = await import("@valkey/valkey-glide");
     const script = registerScript("return 1");
+    expect(script).toBeInstanceOf(Script);
     expect(processOnceSpy).toHaveBeenCalledWith("exit", expect.any(Function));
 
     const exitHandler = getExitHandler(processOnceSpy);
