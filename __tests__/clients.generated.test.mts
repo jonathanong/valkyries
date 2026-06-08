@@ -35,6 +35,13 @@ describe("clients.generated", () => {
     });
   });
 
+  it("glideConfigFromUrl parses URL with password only", () => {
+    const config = glideConfigFromUrl("redis://:pass@localhost:6379");
+    expect(config.credentials).toEqual({
+      password: "pass",
+    });
+  });
+
   it("glideConfigFromUrl decodes percent-encoded credentials", () => {
     const config = glideConfigFromUrl("redis://user%40name:p%40ss%3Aword@localhost:6379");
     expect(config.credentials).toEqual({
