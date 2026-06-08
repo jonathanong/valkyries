@@ -59,7 +59,9 @@ describe("clients exports and pubsub", () => {
       const error = new Error("Connection failed");
       vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
 
-      await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow("Connection failed");
+      await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
+        "Connection failed",
+      );
 
       const successClient = {
         punsubscribe: vi.fn(),

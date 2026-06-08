@@ -134,9 +134,9 @@ describe("clients.generated", () => {
   });
 
   it("glideConfigFromUrl parses rediss:// URL with password but without username", () => {
-    const config = glideConfigFromUrl("rediss://:mypassword@localhost:6380");
+    const config = glideConfigFromUrl("rediss://:pass@localhost:6380");
     expect(config.credentials).toEqual({
-      password: "mypassword",
+      password: "pass",
     });
   });
 });
