@@ -132,4 +132,11 @@ describe("clients.generated", () => {
       expect(config.request_timeout_ms).toBe(750);
     });
   });
+
+  it("glideConfigFromUrl parses rediss:// URL with password but without username", () => {
+    const config = glideConfigFromUrl("rediss://:mypassword@localhost:6380");
+    expect(config.credentials).toEqual({
+      password: "mypassword",
+    });
+  });
 });
