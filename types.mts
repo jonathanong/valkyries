@@ -46,7 +46,10 @@ export type ValkeyCacheOptions<K = string> = {
   nullTtlSeconds?: number;
   /** The mode to use: 'json' (default) for JSON serialization, 'text' for raw text storage, 'buffer' for Buffer storage */
   mode?: "json" | "text" | "buffer";
-  /** Fraction of ttlSeconds representing the age threshold; values are stale when ttlSecondsRemaining < (1 - staleTtlAge) * ttlSeconds (0-1, defaults to 0.9) */
+  /**
+   * Fraction of ttlSeconds representing the age threshold; values are stale when
+   * ttlSecondsRemaining < (1 - staleTtlAge) * ttlSeconds (0-1, defaults to 0.9)
+   */
   staleTtlAge?: number;
   /** When false, stale cache hits are returned without a background refresh. Defaults to true. */
   staleRefresh?: boolean;
