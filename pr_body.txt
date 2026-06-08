@@ -1,0 +1,5 @@
+🎯 **What:** The `buildDynamicConfigSubscriptionClientConfig` function in `clients.mts` lacked explicit test coverage for parsing the properties it constructs (such as `addresses`, `credentials`, `useTLS`, and specific nested structure properties for Pub/Sub configurations).
+
+📊 **Coverage:** Added explicit scenarios covering happy paths, rediss TLS schemes, embedded credentials in URLs, and invalid URL exceptions.
+
+✨ **Result:** Improved test coverage for `clients.mts` by asserting the core properties populated by the function, serving as a safety net against incorrect configuration refactoring.
