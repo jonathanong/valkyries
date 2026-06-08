@@ -42,12 +42,20 @@ describe("utils", () => {
       expect(normalizeCountResult(5)).toBe(5);
       expect(normalizeCountResult(0)).toBe(0);
       expect(normalizeCountResult(-1)).toBe(-1);
+      expect(normalizeCountResult(3.14)).toBe(3.14);
+      expect(normalizeCountResult(NaN)).toBeNaN();
+      expect(normalizeCountResult(Infinity)).toBe(Infinity);
+      expect(normalizeCountResult(-Infinity)).toBe(-Infinity);
     });
 
     it("should return the number equivalent when input is a bigint", () => {
       expect(normalizeCountResult(5n)).toBe(5);
       expect(normalizeCountResult(0n)).toBe(0);
       expect(normalizeCountResult(-1n)).toBe(-1);
+
+      // Test large bigint handling (Number.MAX_SAFE_INTEGER + 1)
+      const largeBigInt = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
+      expect(normalizeCountResult(largeBigInt)).toBe(Number(largeBigInt));
     });
 
     it("should return 0 for invalid types", () => {
