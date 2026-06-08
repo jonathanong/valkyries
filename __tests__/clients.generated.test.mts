@@ -4,6 +4,7 @@ import {
   buildDynamicConfigSubscriptionClientConfig,
   glideConfigFromUrl,
   upsertValkeyClientByUrl,
+  urlsToClients,
 } from "../clients.mts";
 
 describe("clients.generated", () => {
@@ -74,6 +75,15 @@ describe("clients.generated", () => {
     const client1 = await upsertValkeyClientByUrl(url);
     const client2 = await upsertValkeyClientByUrl(url);
     expect(client1).toBe(client2);
+  });
+
+  it("upsertValkeyClientByUrl exposes the created clients in urlsToClients map", async () => {
+    const url = "redis://localhost:7385";
+    const client = await upsertValkeyClientByUrl(url);
+    // The cache key format: `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}`
+    const cacheKey = `${url}:default:true:1000:500`;
+    expect(urlsToClients.has(cacheKey)).toBe(true);
+    expect(urlsToClients.get(cacheKey)).toBe(client);
   });
 
   it("upsertValkeyClientByUrl deduplicates concurrent calls for same URL", async () => {

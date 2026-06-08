@@ -22,6 +22,7 @@ describe("public api", () => {
     expect(api.retryValkeyOperation).toBeTypeOf("function");
     expect(api.registerScript).toBeTypeOf("function");
     expect(api.loadScript).toBeTypeOf("function");
+    expect(api.urlsToClients).toBeInstanceOf(Map);
   });
 
   it("normalizes keys", () => {
