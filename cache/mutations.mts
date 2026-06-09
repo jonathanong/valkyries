@@ -144,16 +144,30 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   private async setSerializedEntriesIfNotInvalidated(
     entries: Array<{ serializedKey: string; value: string | Buffer; ttl?: number }>,
   ): Promise<void> {
-    if (entries.length === 0) return;
-    const keys = [
-      ...entries.map((entry) => this.getSerializedCacheKey(entry.serializedKey)),
-      ...entries.map((entry) => this.getSerializedInvalidationKey(entry.serializedKey)),
-    ];
-    const args: GlideString[] = [String(entries.length)];
-    for (const entry of entries) {
-      args.push(String(entry.ttl != null && entry.ttl > 0 ? entry.ttl : this.ttl));
-      args.push(entry.value);
+    const len = entries.length;
+    if (len === 0) return;
+
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate keys and args arrays and use an indexed for loop instead of .map() and iterators.
+    // Why: Avoids double iterator overhead, multiple intermediate array allocations (from spreads and map), and array resizing via push.
+    // Impact: Lowers GC allocation pressure and speeds up batch `set` operations.
+    // eslint-disable-next-line unicorn/no-new-array
+    const keys = new Array<string>(len * 2);
+    // eslint-disable-next-line unicorn/no-new-array
+    const args = new Array<GlideString>(len * 2 + 1);
+
+    args[0] = String(len);
+
+    for (let i = 0; i < len; i++) {
+      const entry = entries[i];
+      keys[i] = this.getSerializedCacheKey(entry.serializedKey);
+      keys[len + i] = this.getSerializedInvalidationKey(entry.serializedKey);
+
+      const offset = 1 + i * 2;
+      args[offset] = String(entry.ttl != null && entry.ttl > 0 ? entry.ttl : this.ttl);
+      args[offset + 1] = entry.value;
     }
+
     const results = await this.client.invokeScript(cacheSetIfNotInvalidatedScript, {
       keys,
       args,
