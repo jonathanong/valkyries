@@ -78,10 +78,9 @@ describe("clients exports and pubsub", () => {
       await closeDynamicConfigValkeySubscriptionClient();
       expect(true).toBe(true);
 
-      const mockClient = {
-        punsubscribe: vi.fn(),
-        close: vi.fn(),
-      } as unknown as GlideClient;
+      const punsubscribe = vi.fn();
+      const close = vi.fn();
+      const mockClient = { punsubscribe, close } as unknown as GlideClient;
       vi.spyOn(GlideClient, "createClient").mockResolvedValue(mockClient);
 
       const client = await ensureDynamicConfigValkeySubscriptionClient();
@@ -90,8 +89,8 @@ describe("clients exports and pubsub", () => {
       expect(client).toBe(client2);
 
       await closeDynamicConfigValkeySubscriptionClient();
-      expect(mockClient.punsubscribe).toHaveBeenCalled();
-      expect(mockClient.close).toHaveBeenCalled();
+      expect(punsubscribe).toHaveBeenCalled();
+      expect(close).toHaveBeenCalled();
     });
   });
 });
