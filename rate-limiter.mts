@@ -11,6 +11,8 @@ import { deleteKeysWithPrefix } from "./delete.mts";
 import { emitValkeyEvent } from "./events.mts";
 import { normalizeCountResult } from "./utils.mts";
 import { handleValkeyError } from "./errors.mts";
+import { retrySaturationError } from "./retry.mts";
+import { config } from "./config.mts";
 
 const NAMESPACE = "rate-limiter";
 
@@ -27,13 +29,23 @@ export class RateLimiter {
   prefix: string;
   ttl: number;
   private client: GlideClient;
+  private inflightRetryAttempts: number;
+  private inflightRetryDelayMs: number;
 
-  constructor({ prefix, ttlSeconds, client = rateLimiterValkeyClient }: RateLimiterOptions) {
+  constructor({
+    prefix,
+    ttlSeconds,
+    client = rateLimiterValkeyClient,
+    inflightRetryAttempts,
+    inflightRetryDelayMs,
+  }: RateLimiterOptions) {
     if (!prefix) throw new Error("RateLimiter requires a prefix");
     if (!(ttlSeconds > 0)) throw new Error("RateLimiter: ttlSeconds must be greater than 0");
     this.prefix = prefix;
     this.ttl = ttlSeconds;
     this.client = client;
+    this.inflightRetryAttempts = inflightRetryAttempts ?? config.inflight_retry_attempts;
+    this.inflightRetryDelayMs = inflightRetryDelayMs ?? config.inflight_retry_delay_ms;
   }
 
   async add(ids: string[]) {
@@ -51,7 +63,10 @@ export class RateLimiter {
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
     }
-    await this.client.invokeScript(rateLimiterAddScript, { keys, args });
+    await retrySaturationError(
+      () => this.client.invokeScript(rateLimiterAddScript, { keys, args }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
     emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
   }
 
@@ -85,10 +100,10 @@ export class RateLimiter {
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
     }
-    const results = await this.client.invokeScript(rateLimiterAddAndCheckScript, {
-      keys,
-      args,
-    });
+    const results = await retrySaturationError(
+      () => this.client.invokeScript(rateLimiterAddAndCheckScript, { keys, args }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
     // Valkey should always return an array. If not, the Lua script likely ran (atomic scripts
     // either complete or error), but the return type is unexpected so we can't trust it.
     // Fail open (allow the request). Skip events since the Valkey response is unreliable;
@@ -129,10 +144,10 @@ export class RateLimiter {
     const keys = filteredIds.map((id) => this.getKey(id));
     // Single read-only script call for all keys (server time is used in script)
     // Rate limiter checks need primary reads to avoid replica lag causing stale counts.
-    const results = await this.client.invokeScript(rateLimiterGetScript, {
-      keys,
-      args: [ttlSeconds.toString()],
-    });
+    const results = await retrySaturationError(
+      () => this.client.invokeScript(rateLimiterGetScript, { keys, args: [ttlSeconds.toString()] }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
     // Results are an array of numbers from ZCOUNT; return zeros on unexpected type (fail open)
     if (!Array.isArray(results)) return filteredIds.map(() => 0);
     const counts = results.map((result) => normalizeCountResult(result));
@@ -176,6 +191,8 @@ export class RateLimiter {
     validateWindows(windows);
     const client = options.client ?? rateLimiterValkeyClient;
     const mode = options.mode ?? "record-all";
+    const inflightRetryAttempts = options.inflightRetryAttempts ?? config.inflight_retry_attempts;
+    const inflightRetryDelayMs = options.inflightRetryDelayMs ?? config.inflight_retry_delay_ms;
 
     // ⚡ Bolt Optimization:
     // What: Pre-allocate keys, args, and counts arrays and use indexed loops instead of .map() and iterators.
@@ -201,7 +218,10 @@ export class RateLimiter {
 
     validateUniqueKeys(keys);
 
-    const results = await client.invokeScript(rateLimiterAddAndCheckWindowsScript, { keys, args });
+    const results = await retrySaturationError(
+      () => client.invokeScript(rateLimiterAddAndCheckWindowsScript, { keys, args }),
+      { attempts: inflightRetryAttempts, delayMs: inflightRetryDelayMs },
+    );
     if (!Array.isArray(results)) {
       handleValkeyError(
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),

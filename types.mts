@@ -13,6 +13,15 @@ export type RateLimiterOptions = {
   ttlSeconds: number;
   /** Optional Valkey client. Defaults to the package rate limiter client. */
   client?: GlideClient;
+  /**
+   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   */
+  inflightRetryAttempts?: number;
+  /**
+   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5].
+   */
+  inflightRetryDelayMs?: number;
 };
 
 export type RateLimiterWindow = {
@@ -35,6 +44,15 @@ export type RateLimiterAddAndCheckWindowsOptions = {
   client?: GlideClient;
   /** Stop processing later windows as soon as an earlier window is limited. Defaults to record-all. */
   mode?: "record-all" | "stop-on-limited";
+  /**
+   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   */
+  inflightRetryAttempts?: number;
+  /**
+   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5].
+   */
+  inflightRetryDelayMs?: number;
 };
 
 export type ValkeyCacheOptions<K = string> = {
@@ -66,6 +84,15 @@ export type ValkeyCacheOptions<K = string> = {
    * Valkey (e.g. strongly-consistent auth caches).
    */
   fallbackOnReadError?: boolean;
+  /**
+   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   */
+  inflightRetryAttempts?: number;
+  /**
+   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5].
+   */
+  inflightRetryDelayMs?: number;
 } & (K extends string
   ? {
       /**

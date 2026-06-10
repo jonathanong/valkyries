@@ -1,5 +1,5 @@
 import type { GlideClient } from "@valkey/valkey-glide";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ValkeyCache } from "../../cache.mts";
 import { setValkeyErrorHandler } from "../../errors.mts";
 
@@ -10,14 +10,140 @@ function makeFailingClient(message = "Reached maximum inflight requests"): Glide
   } as unknown as GlideClient;
 }
 
+/**
+ * Creates a GlideClient stub whose invokeScript rejects with a saturation error for the
+ * first `failCount` calls, then resolves with `successValue` on subsequent calls.
+ */
+function makeTransientSaturationClient(
+  failCount: number,
+  successValue: unknown,
+): { client: GlideClient; callCount: () => number } {
+  let calls = 0;
+  const client = {
+    invokeScript: () => {
+      calls++;
+      if (calls <= failCount) {
+        return Promise.reject(new Error("Reached maximum inflight requests"));
+      }
+      return Promise.resolve(successValue);
+    },
+  } as unknown as GlideClient;
+  return { client, callCount: () => calls };
+}
+
 function makeCache(prefix: string, fallbackOnReadError?: boolean) {
   return new ValkeyCache({
     prefix,
     ttlSeconds: 10,
     client: makeFailingClient(),
     fallbackOnReadError,
+    // Disable saturation retry so that these fallback tests exercise the fallback
+    // path directly without waiting for retry delays.
+    inflightRetryAttempts: 1,
   });
 }
+
+describe("cache.saturation-retry", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("single-read: succeeds without fallback when saturation clears after N retries", async () => {
+    // Reject twice (saturation), then return a cache miss on the 3rd call.
+    // Cache miss result: [null, null, 0] => value null, no TTL, no bloom miss.
+    const { client } = makeTransientSaturationClient(2, [null, null, 0]);
+    const cache = new ValkeyCache({
+      prefix: "test-retry-single",
+      ttlSeconds: 10,
+      client,
+      fallbackOnReadError: true,
+      inflightRetryAttempts: 3,
+      inflightRetryDelayMs: 50,
+    });
+    let fetchCount = 0;
+    const cachedFn = cache.cacheGetByAny(async (key: string) => {
+      fetchCount++;
+      return { id: key };
+    });
+
+    const promise = cachedFn("my-key");
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    // The cache was a miss so the fetch fn should be called once (no error)
+    expect(result).toEqual({ id: "my-key" });
+    expect(fetchCount).toBe(1);
+  });
+
+  it("batch-read: succeeds without fallback when saturation clears after N retries", async () => {
+    // Reject twice, then return a 3-entry batch cache miss result.
+    // Each entry: [null, null, 0] × 3 = 9-element flat array (but as nested from script).
+    // The batch script returns a flat array: [v0, ttl0, bloom0, v1, ttl1, bloom1, ...]
+    const { client } = makeTransientSaturationClient(2, [
+      null,
+      null,
+      0,
+      null,
+      null,
+      0,
+      null,
+      null,
+      0,
+    ]);
+    const cache = new ValkeyCache({
+      prefix: "test-retry-batch",
+      ttlSeconds: 10,
+      client,
+      fallbackOnReadError: true,
+      inflightRetryAttempts: 3,
+      inflightRetryDelayMs: 50,
+    });
+    let fetchedKeys: string[] = [];
+    const cachedFn = cache.cacheGetByAnyBatch(async (keys: string[]) => {
+      fetchedKeys = [...keys];
+      return keys.map((k) => ({ id: k }));
+    });
+
+    const promise = cachedFn(["a", "b", "c"]);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    expect(fetchedKeys).toEqual(["a", "b", "c"]);
+  });
+
+  it("single-read: inflightRetryAttempts option is respected", async () => {
+    // Fail 3 times with saturation — with only 2 attempts, will give up after 2 tries.
+    const { client, callCount } = makeTransientSaturationClient(3, [null, null, 0]);
+    const cache = new ValkeyCache({
+      prefix: "test-retry-attempts",
+      ttlSeconds: 10,
+      client,
+      fallbackOnReadError: true,
+      inflightRetryAttempts: 2,
+      inflightRetryDelayMs: 50,
+    });
+    let fetchCount = 0;
+    const cachedFn = cache.cacheGetByAny(async (key: string) => {
+      fetchCount++;
+      return { id: key };
+    });
+
+    const promise = cachedFn("my-key");
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    // After 2 failed attempts it falls back (fallbackOnReadError=true), fetch fn called
+    expect(result).toEqual({ id: "my-key" });
+    expect(fetchCount).toBe(1);
+    // invokeScript called exactly 2 times (exhausted inflightRetryAttempts=2)
+    expect(callCount()).toBe(2);
+  });
+});
 
 describe("cache.fallback", () => {
   const capturedErrors: Error[] = [];

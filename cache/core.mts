@@ -8,6 +8,8 @@ import { normalizeTtlResult } from "../utils.mts";
 import { decodeValue, serializeValue } from "../cache-utils.mts";
 import type { ValkeyBloomFilter } from "../bloom-filter.mts";
 import { CACHE_NAMESPACE, getValuesWithTtlScript, getValueWithTtlScript } from "./constants.mts";
+import { retrySaturationError } from "../retry.mts";
+import { config } from "../config.mts";
 
 export type CacheEntry = {
   value: string | Buffer | Record<string, unknown> | null;
@@ -28,6 +30,8 @@ export abstract class ValkeyCacheCore<K = string> {
   protected refreshPromises: Map<string, Promise<void>>;
   protected keySerializer: (key: K) => string;
   protected client: GlideClient;
+  protected inflightRetryAttempts: number;
+  protected inflightRetryDelayMs: number;
 
   constructor({
     prefix,
@@ -41,6 +45,8 @@ export abstract class ValkeyCacheCore<K = string> {
     keySerializer,
     client = cacheValkeyClient,
     fallbackOnReadError = true,
+    inflightRetryAttempts,
+    inflightRetryDelayMs,
   }: ValkeyCacheOptions<K>) {
     if (!prefix) throw new Error("ValkeyCache requires a prefix");
     if (!(ttlSeconds > 0)) throw new Error("ValkeyCache: ttlSeconds must be greater than 0");
@@ -60,6 +66,8 @@ export abstract class ValkeyCacheCore<K = string> {
     this.keySerializer =
       (keySerializer as ((key: K) => string) | undefined) ?? ((key: K) => String(key));
     this.client = client;
+    this.inflightRetryAttempts = inflightRetryAttempts ?? config.inflight_retry_attempts;
+    this.inflightRetryDelayMs = inflightRetryDelayMs ?? config.inflight_retry_delay_ms;
   }
 
   /** Reports a Valkey read error and rethrows when fallbackOnReadError is false. */
@@ -136,11 +144,15 @@ export abstract class ValkeyCacheCore<K = string> {
     const cacheKey = this.getSerializedCacheKey(serializedKey);
     const bloomEnabled = this.bloomFilterEnabled?.() ?? true;
     const bloomFilterKey = bloomEnabled ? (this.bloomFilter?.getKey() ?? "") : "";
-    const scriptResult = await this.client.invokeScript(getValueWithTtlScript, {
-      keys: [cacheKey],
-      args: [bloomFilterKey],
-      decoder: Decoder.Bytes,
-    });
+    const scriptResult = await retrySaturationError(
+      () =>
+        this.client.invokeScript(getValueWithTtlScript, {
+          keys: [cacheKey],
+          args: [bloomFilterKey],
+          decoder: Decoder.Bytes,
+        }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
     const valueRaw = Array.isArray(scriptResult) ? (scriptResult[0] as GlideString | null) : null;
     const ttlSecondsRemaining = Array.isArray(scriptResult)
       ? normalizeTtlResult(scriptResult[1])
@@ -156,11 +168,15 @@ export abstract class ValkeyCacheCore<K = string> {
     const cacheKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
     const bloomEnabled = this.bloomFilterEnabled?.() ?? true;
     const bloomFilterKey = bloomEnabled ? (this.bloomFilter?.getKey() ?? "") : "";
-    const scriptResult = await this.client.invokeScript(getValuesWithTtlScript, {
-      keys: cacheKeys,
-      args: [bloomFilterKey],
-      decoder: Decoder.Bytes,
-    });
+    const scriptResult = await retrySaturationError(
+      () =>
+        this.client.invokeScript(getValuesWithTtlScript, {
+          keys: cacheKeys,
+          args: [bloomFilterKey],
+          decoder: Decoder.Bytes,
+        }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
     const rawResults = Array.isArray(scriptResult) ? scriptResult : [];
     return Promise.all(
       serializedKeys.map((key, index) => this.decodeCacheEntry(key, rawResults, index)),
