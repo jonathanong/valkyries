@@ -115,7 +115,7 @@ describe("scripts", () => {
 
   it("loadScript throws when readFileSync throws", async () => {
     const error = new Error("File not found");
-    mockReadFileSync.mockImplementation(() => {
+    mockReadFileSync.mockImplementationOnce(() => {
       throw error;
     });
     const { loadScript } = await import("../scripts.mts");
