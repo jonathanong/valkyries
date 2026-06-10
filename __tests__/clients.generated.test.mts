@@ -80,8 +80,9 @@ describe("clients.generated", () => {
   it("upsertValkeyClientByUrl exposes the created clients in urlsToClients map", async () => {
     const url = "redis://localhost:7385";
     const client = await upsertValkeyClientByUrl(url);
+    const { config } = await import("../config.mts");
     // The cache key format: `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}`
-    const cacheKey = `${url}:default:true:1000:500`;
+    const cacheKey = `${url}:default:true:${config.inflight_requests_limit}:${config.request_timeout_ms}`;
     expect(urlsToClients.has(cacheKey)).toBe(true);
     expect(urlsToClients.get(cacheKey)).toBe(client);
   });
