@@ -24,6 +24,7 @@ export default defineConfig({
         "scripts.mts",
         "retry.mts",
         "utils.mts",
+        "clients.mts",
       ],
       exclude: [
         "**/__tests__/**",
