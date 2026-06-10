@@ -96,4 +96,30 @@ describe("scripts", () => {
     expect(fs.readFileSync).toHaveBeenCalledWith(new URL("file:///app/scripts/test.lua"), "utf8");
     expect(result).toBe("return 2");
   });
+
+  it("loadScript works with URL object as baseUrl", async () => {
+    mockReadFileSync.mockReturnValue("return 3");
+    const { loadScript } = await import("../scripts.mts");
+
+    const fs = await import("node:fs");
+
+    const baseUrl = new URL("file:///app/base/");
+    const result = loadScript("other.lua", baseUrl);
+
+    expect(fs.readFileSync).toHaveBeenCalledWith(
+      new URL("file:///app/base/scripts/other.lua"),
+      "utf8",
+    );
+    expect(result).toBe("return 3");
+  });
+
+  it("loadScript throws when readFileSync throws", async () => {
+    const error = new Error("File not found");
+    mockReadFileSync.mockImplementationOnce(() => {
+      throw error;
+    });
+    const { loadScript } = await import("../scripts.mts");
+
+    expect(() => loadScript("missing.lua", "file:///app/")).toThrow(error);
+  });
 });
