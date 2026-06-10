@@ -23,6 +23,7 @@ describe("public api", () => {
     expect(api.registerScript).toBeTypeOf("function");
     expect(api.loadScript).toBeTypeOf("function");
     expect(api.urlsToClients).toBeInstanceOf(Map);
+    expect(api.multiCacheGetByAnyBatch).toBeTypeOf("function");
   });
 
   it("normalizes keys", () => {

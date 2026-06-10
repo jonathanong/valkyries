@@ -128,6 +128,38 @@ export abstract class ValkeyCacheCore<K = string> {
     return `${CACHE_NAMESPACE}:${this.prefix}:{${serializedKey}}`;
   }
 
+  /**
+   * Returns the physical Valkey keys and output-index mapping for the given logical keys,
+   * after deduplication and normalization. Intended for cross-cache batch helpers.
+   */
+  public getPhysicalCacheKeys(keys: K[]): {
+    physicalKeys: string[];
+    outputIndices: number[];
+    serializedKeys: string[];
+  } {
+    const { serializedKeys, outputIndices } = this.deduplicateKeys(keys);
+    const physicalKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
+    return { physicalKeys, outputIndices, serializedKeys };
+  }
+
+  /**
+   * Decodes a raw Valkey value (as returned by MGET) for this cache's mode.
+   * Intended for cross-cache batch helpers that issue a single MGET.
+   */
+  public async decodeRawValue(
+    serializedKey: string,
+    raw: GlideString | null,
+  ): Promise<string | Buffer | Record<string, unknown> | null> {
+    return this.decode(serializedKey, raw);
+  }
+
+  /**
+   * Exposes the underlying Valkey client for cross-cache batch operations.
+   */
+  public getClient(): GlideClient {
+    return this.client;
+  }
+
   protected getSerializedInvalidationKey(serializedKey: string): string {
     return `${CACHE_NAMESPACE}:${this.prefix}:invalidation:{${serializedKey}}`;
   }
