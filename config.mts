@@ -20,4 +20,12 @@ export const config = {
     const n = Number(process.env.VALKEY_REQUEST_TIMEOUT_MS);
     return Number.isFinite(n) ? n : 500;
   })(),
+  inflight_retry_attempts: (() => {
+    const n = Number(process.env.VALKEY_INFLIGHT_RETRY_ATTEMPTS);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
+  })(),
+  inflight_retry_delay_ms: (() => {
+    const n = Number(process.env.VALKEY_INFLIGHT_RETRY_DELAY_MS);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1000;
+  })(),
 };

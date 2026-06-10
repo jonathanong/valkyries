@@ -10,6 +10,8 @@ const RETRYABLE_PATTERNS = [
   "Client is in closing state",
 ];
 
+const SATURATION_PATTERN = "Reached maximum inflight requests";
+
 /**
  * Returns true when the error is a transient Valkey / Glide connection or saturation error
  * that is safe to retry (the operation was never sent or was rejected before execution).
@@ -20,6 +22,16 @@ export function isRetryableValkeyError(error: unknown): boolean {
   return RETRYABLE_PATTERNS.some((pattern) => msg.includes(pattern));
 }
 
+/**
+ * Returns true only when the error is an inflight-saturation rejection
+ * (`Reached maximum inflight requests`). Safe to retry because the command
+ * was never sent — the client rejected it locally before any network I/O.
+ */
+export function isSaturationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes(SATURATION_PATTERN);
+}
+
 export type RetryValkeyOperationOptions = {
   /** Maximum number of attempts (default: 3). */
   attempts?: number;
@@ -27,6 +39,11 @@ export type RetryValkeyOperationOptions = {
   delayMs?: number;
   /** Predicate controlling which errors trigger a retry (default: isRetryableValkeyError). */
   shouldRetry?: (error: unknown) => boolean;
+  /**
+   * When true, each inter-attempt delay is randomized in [delayMs, delayMs * 5]
+   * to spread out concurrent retriers during saturation. Defaults to false.
+   */
+  jitter?: boolean;
 };
 
 /**
@@ -42,7 +59,12 @@ export async function retryValkeyOperation<T>(
   fn: () => Promise<T>,
   options?: RetryValkeyOperationOptions,
 ): Promise<T> {
-  const { attempts = 3, delayMs = 1000, shouldRetry = isRetryableValkeyError } = options ?? {};
+  const {
+    attempts = 3,
+    delayMs = 1000,
+    shouldRetry = isRetryableValkeyError,
+    jitter = false,
+  } = options ?? {};
   const maxAttempts = Math.max(1, attempts);
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -52,9 +74,42 @@ export async function retryValkeyOperation<T>(
       if (!shouldRetry(error)) throw error;
       lastError = error;
       if (attempt < maxAttempts - 1) {
-        await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+        const waitMs = jitter ? delayMs + Math.random() * (delayMs * 4) : delayMs;
+        await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       }
     }
   }
   throw lastError;
+}
+
+export type RetrySaturationErrorOptions = {
+  /** Maximum number of attempts (default: 3). */
+  attempts?: number;
+  /**
+   * Minimum milliseconds between attempts (default: 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5] to spread concurrent retriers.
+   */
+  delayMs?: number;
+};
+
+/**
+ * Retries a Valkey operation only on inflight-saturation rejections
+ * (`Reached maximum inflight requests`), with jittered delay in [delayMs, delayMs*5].
+ *
+ * All other errors are rethrown immediately. Use this at internal command boundaries
+ * so callers don't need to wrap each call site.
+ *
+ * @example
+ * const value = await retrySaturationError(() => client.invokeScript(script, opts));
+ */
+export function retrySaturationError<T>(
+  fn: () => Promise<T>,
+  options?: RetrySaturationErrorOptions,
+): Promise<T> {
+  return retryValkeyOperation(fn, {
+    attempts: options?.attempts,
+    delayMs: options?.delayMs,
+    shouldRetry: isSaturationError,
+    jitter: true,
+  });
 }
