@@ -46,6 +46,13 @@ describe("utils", () => {
       expect(normalizeCountResult(NaN)).toBeNaN();
       expect(normalizeCountResult(Infinity)).toBe(Infinity);
       expect(normalizeCountResult(-Infinity)).toBe(-Infinity);
+
+      // Safe-integer boundaries pass through unchanged.
+      expect(normalizeCountResult(Number.MAX_SAFE_INTEGER)).toBe(Number.MAX_SAFE_INTEGER);
+      expect(normalizeCountResult(Number.MIN_SAFE_INTEGER)).toBe(Number.MIN_SAFE_INTEGER);
+
+      // Negative zero is preserved as -0 (Object.is distinguishes it from 0).
+      expect(Object.is(normalizeCountResult(-0), -0)).toBe(true);
     });
 
     it("should return the number equivalent when input is a bigint", () => {
@@ -53,9 +60,14 @@ describe("utils", () => {
       expect(normalizeCountResult(0n)).toBe(0);
       expect(normalizeCountResult(-1n)).toBe(-1);
 
-      // Test large bigint handling (Number.MAX_SAFE_INTEGER + 1)
+      // Safe-integer boundaries round-trip exactly.
+      expect(normalizeCountResult(BigInt(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+      expect(normalizeCountResult(BigInt(Number.MIN_SAFE_INTEGER))).toBe(Number.MIN_SAFE_INTEGER);
+
+      // Beyond Number.MAX_SAFE_INTEGER the bigint coerces to the nearest
+      // double; 2^53 + 1 is not representable and rounds down to 2^53.
       const largeBigInt = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
-      expect(normalizeCountResult(largeBigInt)).toBe(Number(largeBigInt));
+      expect(normalizeCountResult(largeBigInt)).toBe(9007199254740992);
     });
 
     it("should return 0 for invalid types", () => {
