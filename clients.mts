@@ -13,6 +13,7 @@ const CLIENT_CLOSE_SETTLE_MS = 100;
 export type ValkeyReadFrom = "primary" | "preferReplica";
 
 export type ValkeyClientOptions = {
+  name?: string;
   readFrom?: ValkeyReadFrom;
   lazyConnect?: boolean;
   inflightRequestsLimit?: number;
@@ -83,7 +84,7 @@ export async function upsertValkeyClientByUrl(
   const effectiveLazyConnect = options?.lazyConnect ?? true;
   const effectiveInflight = options?.inflightRequestsLimit ?? config.inflight_requests_limit;
   const effectiveTimeout = options?.requestTimeout ?? config.request_timeout_ms;
-  const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}`;
+  const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}:${options?.name ?? ""}`;
   const existing = urlsToClients.get(cacheKey);
   if (existing) return existing;
   const inFlight = urlsToClientPromises.get(cacheKey);

@@ -81,8 +81,8 @@ describe("clients.generated", () => {
     const url = "redis://localhost:7385";
     const client = await upsertValkeyClientByUrl(url);
     const { config } = await import("../config.mts");
-    // The cache key format: `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}`
-    const cacheKey = `${url}:default:true:${config.inflight_requests_limit}:${config.request_timeout_ms}`;
+    // The cache key format: `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}:${options?.name ?? ""}`
+    const cacheKey = `${url}:default:true:${config.inflight_requests_limit}:${config.request_timeout_ms}:`;
     expect(urlsToClients.has(cacheKey)).toBe(true);
     expect(urlsToClients.get(cacheKey)).toBe(client);
   });
@@ -126,6 +126,20 @@ describe("clients.generated", () => {
     const client1 = await upsertValkeyClientByUrl(url, { inflightRequestsLimit: 500 });
     const client2 = await upsertValkeyClientByUrl(url, { inflightRequestsLimit: 2000 });
     expect(client1).not.toBe(client2);
+  });
+
+  it("upsertValkeyClientByUrl creates separate clients for different name values", async () => {
+    const url = "redis://localhost:7383";
+    const client1 = await upsertValkeyClientByUrl(url, { name: "alpha" });
+    const client2 = await upsertValkeyClientByUrl(url, { name: "beta" });
+    expect(client1).not.toBe(client2);
+  });
+
+  it("upsertValkeyClientByUrl deduplicates calls with same URL and same name", async () => {
+    const url = "redis://localhost:7384";
+    const client1 = await upsertValkeyClientByUrl(url, { name: "shared" });
+    const client2 = await upsertValkeyClientByUrl(url, { name: "shared" });
+    expect(client1).toBe(client2);
   });
 
   describe("env-based config defaults", () => {
