@@ -5,3 +5,6 @@
 ## 2026-06-07 - Pre-allocate Arrays over Spread & Map in Batch Invalidation
 **Learning:** In hot batch paths (like Valkey cache invalidation mappings where cache and invalidation keys are derived from the same source entries), constructing arrays by spreading multiple `.map()` results (e.g. `[...entries.map(f1), ...entries.map(f2)]`) introduces significant iterator overhead and repeated array resizing/cloning.
 **Action:** When creating dense structured arrays from an input list in performance-critical paths, pre-allocate the final array (e.g., `new Array(len * 2)`) and use a single indexed `for` loop to populate elements directly to minimize GC pressure and improve throughput. Use `// eslint-disable-next-line unicorn/no-new-array` if needed.
+## 2026-06-10 - Pre-allocate Arrays over Map in Batch Read
+**Learning:** In the cache batch-read hot path, mapping cached entries to values and creating set-entries arrays via `.map()` introduces significant iterator closure overhead and dynamic array resizing.
+**Action:** When creating dense structured arrays in performance-critical batch paths, pre-allocate the final array (e.g., `new Array(len)`) and use a single indexed `for` loop to populate elements directly to minimize GC pressure and improve throughput. Use `// eslint-disable-next-line unicorn/no-new-array` if needed.
