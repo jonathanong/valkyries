@@ -112,9 +112,33 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     }
 
     let deleted = 0;
+    let promises: Promise<number>[] = [];
+
+    // ⚡ Bolt Optimization:
+    // What: Execute independent cache deletions concurrently instead of sequentially, with batching.
+    // Why: Eliminates N+1 query performance bottleneck across multiple clients, improving throughput.
+    // Impact: Reduces execution time linearly with the number of target clients.
     for (const [client, group] of groups) {
-      deleted += await ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      const p = ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      p.catch(() => {});
+      promises.push(p);
+
+      if (promises.length >= 100) {
+        const results = await Promise.all(promises);
+        for (let i = 0; i < results.length; i++) {
+          deleted += results[i];
+        }
+        promises = [];
+      }
     }
+
+    if (promises.length > 0) {
+      const results = await Promise.all(promises);
+      for (let i = 0; i < results.length; i++) {
+        deleted += results[i];
+      }
+    }
+
     return deleted;
   }
 
