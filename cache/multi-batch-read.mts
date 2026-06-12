@@ -113,8 +113,8 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
     const dedupedValues = decodedValues.slice(offset, offset + physicalKeys.length);
 
     // Scatter back to original positions using outputIndices
-    // eslint-disable-next-line unicorn/no-new-array
-    const scattered = new Array<CacheValue>(outputIndices.length);
+    const scattered: Array<CacheValue> = [];
+    scattered.length = outputIndices.length;
     for (let j = 0; j < outputIndices.length; j++) {
       const idx = outputIndices[j];
       scattered[j] = idx === -1 ? null : dedupedValues[idx];

@@ -53,8 +53,8 @@ export class DynamicConfig {
     this.fields = new Map();
 
     const keys = Object.keys(this.fieldTypes);
-    // eslint-disable-next-line unicorn/no-new-array
-    this.fieldsConfig = new Array(keys.length);
+    this.fieldsConfig = [];
+    this.fieldsConfig.length = keys.length;
     for (let i = 0; i < keys.length; i++) {
       const name = keys[i];
       this.fieldsConfig[i] = {
