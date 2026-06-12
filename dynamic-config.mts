@@ -53,16 +53,11 @@ export class DynamicConfig {
     this.fields = new Map();
 
     const keys = Object.keys(this.fieldTypes);
-    // eslint-disable-next-line unicorn/no-new-array
-    this.fieldsConfig = new Array(keys.length);
-    for (let i = 0; i < keys.length; i++) {
-      const name = keys[i];
-      this.fieldsConfig[i] = {
-        name,
-        type: this.fieldTypes[name],
-        defaultValue: this.defaultFields[name],
-      };
-    }
+    this.fieldsConfig = keys.map((name) => ({
+      name,
+      type: this.fieldTypes[name],
+      defaultValue: this.defaultFields[name],
+    }));
     /* v8 ignore next 3 -- duplicate construction is guarded only outside NODE_ENV=test. */
     if (!isTest && dynamicConfigs.some((config) => config.key === this.key)) {
       throw new Error(`DynamicConfig already initialized: ${this.key}`);
