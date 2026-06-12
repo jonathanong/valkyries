@@ -18,6 +18,20 @@ describe("events", () => {
       expect(emitSpy).toHaveBeenCalledWith("cache:set", eventArg);
     });
 
+    it("should trigger registered listeners with correct arguments", () => {
+      const listenerSpy = vi.fn();
+      valkeyEvents.on("cache:set", listenerSpy);
+
+      const eventArg = { cacheName: "test-cache", keys: ["key1"] };
+      emitValkeyEvent("cache:set", eventArg);
+
+      expect(listenerSpy).toHaveBeenCalledTimes(1);
+      expect(listenerSpy).toHaveBeenCalledWith(eventArg);
+
+      // Clean up the listener so it doesn't affect other tests
+      valkeyEvents.off("cache:set", listenerSpy);
+    });
+
     it("should handle error during emit and call handleValkeyError", () => {
       const error = new Error("Emit failed");
       const emitSpy = vi.spyOn(valkeyEvents, "emit").mockImplementation(() => {
