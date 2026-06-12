@@ -223,7 +223,7 @@ export class RateLimiter {
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
       );
       /* v8 ignore next 2 -- malformed script return requires a mocked corrupted Valkey response. */
-      return { counts: Array.from<number>({ length: len }, () => 0), limited: false };
+      return { counts: Array.from({ length: len }).map(() => 0), limited: false };
     }
 
     const counts = Array.from<number>({ length: len });
