@@ -62,7 +62,10 @@ export type ValkeyCacheOptions<K = string> = {
   ttlSeconds: number;
   /** The TTL in seconds for null values, defaults to ttlSeconds / 60 */
   nullTtlSeconds?: number;
-  /** The mode to use: 'json' (default) for JSON serialization, 'text' for raw text storage, 'buffer' for Buffer storage */
+  /**
+   * The mode to use: 'json' (default) for JSON serialization,
+   * 'text' for raw text storage, 'buffer' for Buffer storage
+   */
   mode?: "json" | "text" | "buffer";
   /**
    * Fraction of ttlSeconds representing the age threshold; values are stale when
