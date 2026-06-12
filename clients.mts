@@ -84,7 +84,14 @@ export async function upsertValkeyClientByUrl(
   const effectiveLazyConnect = options?.lazyConnect ?? true;
   const effectiveInflight = options?.inflightRequestsLimit ?? config.inflight_requests_limit;
   const effectiveTimeout = options?.requestTimeout ?? config.request_timeout_ms;
-  const cacheKey = `${url}:${options?.readFrom ?? "default"}:${effectiveLazyConnect}:${effectiveInflight}:${effectiveTimeout}:${options?.name ?? ""}`;
+  const cacheKey = [
+    url,
+    options?.readFrom ?? "default",
+    effectiveLazyConnect,
+    effectiveInflight,
+    effectiveTimeout,
+    options?.name ?? "",
+  ].join(":");
   const existing = urlsToClients.get(cacheKey);
   if (existing) return existing;
   const inFlight = urlsToClientPromises.get(cacheKey);
