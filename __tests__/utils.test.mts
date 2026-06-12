@@ -35,6 +35,19 @@ describe("utils", () => {
       expect(normalizeTtlResult([])).toBeNull();
       expect(normalizeTtlResult(true)).toBeNull();
     });
+
+    it("should truncate values rather than floor to avoid sentinel value collisions with negative inputs", () => {
+      // Previously, Math.floor(-1500 / 1000) === Math.floor(-1.5) === -2 (a sentinel value)
+      // Now, Math.trunc(-1500 / 1000) === Math.trunc(-1.5) === -1 (which still overlaps, but trunc(-500/1000) is 0)
+
+      // The true collision avoided: Math.floor(-500 / 1000) === -1. Now it is 0.
+      expect(normalizeTtlResult(-500)).toBe(-0);
+      expect(normalizeTtlResult(-1500)).toBe(-1);
+
+      // And with BigInts
+      expect(normalizeTtlResult(-500n)).toBe(-0);
+      expect(normalizeTtlResult(-1500n)).toBe(-1);
+    });
   });
 
   describe("normalizeCountResult", () => {
