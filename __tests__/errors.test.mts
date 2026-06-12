@@ -53,4 +53,56 @@ describe("errors.mts", () => {
     expect(mockHandler).toHaveBeenCalledWith(expect.any(Error));
     expect(mockHandler.mock.calls[0]![0].message).toBe("[object Object]");
   });
+
+  it("should handle null and undefined", () => {
+    const mockHandler = vi.fn<ValkeyErrorHandler>();
+    setValkeyErrorHandler(mockHandler);
+
+    handleValkeyError(null);
+    expect(mockHandler.mock.calls[0]![0].message).toBe("null");
+
+    handleValkeyError(undefined);
+    expect(mockHandler.mock.calls[1]![0].message).toBe("undefined");
+  });
+
+  it("should handle boolean values", () => {
+    const mockHandler = vi.fn<ValkeyErrorHandler>();
+    setValkeyErrorHandler(mockHandler);
+
+    handleValkeyError(true);
+    expect(mockHandler.mock.calls[0]![0].message).toBe("true");
+
+    handleValkeyError(false);
+    expect(mockHandler.mock.calls[1]![0].message).toBe("false");
+  });
+
+  it("should handle objects without a prototype (Object.create(null))", () => {
+    const mockHandler = vi.fn<ValkeyErrorHandler>();
+    setValkeyErrorHandler(mockHandler);
+
+    const nullProtoObj = Object.create(null);
+    handleValkeyError(nullProtoObj);
+
+    expect(mockHandler).toHaveBeenCalledTimes(1);
+    expect(mockHandler).toHaveBeenCalledWith(expect.any(Error));
+    expect(mockHandler.mock.calls[0]![0].message).toBe("An unknown error occurred");
+  });
+
+  it("should handle custom error classes extending Error", () => {
+    const mockHandler = vi.fn<ValkeyErrorHandler>();
+    setValkeyErrorHandler(mockHandler);
+
+    class CustomError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = "CustomError";
+      }
+    }
+
+    const testError = new CustomError("Custom error message");
+    handleValkeyError(testError);
+
+    expect(mockHandler).toHaveBeenCalledTimes(1);
+    expect(mockHandler).toHaveBeenCalledWith(testError);
+  });
 });
