@@ -14,3 +14,9 @@
 ## 2026-06-25 - Pre-allocate Arrays over Spread & Map in `normalizeBatchedResults`
 **Learning:** In the bloom filter batch lookup hot path, mapping results and accumulating them into an array using `.push(...batch.map(...))` introduces iterator closure overhead, dynamic array resizing, and rest argument allocation for each batch.
 **Action:** When accumulating batched results into a single flat array in performance-critical paths, compute the total length first, pre-allocate the final array (`new Array(totalLen)`), and use a nested indexed `for` loop (`boolResults[offset++] = ...`) to write values directly. This minimizes GC pressure and improves execution time.
+## 2026-06-16 - Pre-allocate Arrays over Promise mapping in Batch Mutations
+**Learning:** In the cache batch-mutation hot paths (`setBatch` and `setBatchIfNotInvalidated`), mapping elements to create a Promises array (via `.map`) before calling `Promise.allSettled()` introduces measurable iterator overhead and dynamic array resizing.
+**Action:** When mapping elements to promises in batch hot paths, pre-allocate the promises array using `new Array(len)` and assign the mapped promises via an indexed `for` loop to avoid closure and dynamic memory overhead. Use `// eslint-disable-next-line unicorn/no-new-array`.
+## 2026-06-16 - Pre-allocate Arrays over Promise mapping in Batch Mutations
+**Learning:** In the cache batch-mutation hot paths (`setBatch` and `setBatchIfNotInvalidated`), mapping elements to create a Promises array (via `.map`) before calling `Promise.allSettled()` introduces measurable iterator overhead and dynamic array resizing.
+**Action:** When mapping elements to promises in batch hot paths, pre-allocate the promises array using `new Array(len)` and assign the mapped promises via an indexed `for` loop to avoid closure and dynamic memory overhead. Use `// eslint-disable-next-line unicorn/no-new-array`.
