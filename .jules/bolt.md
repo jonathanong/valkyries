@@ -8,3 +8,6 @@
 ## 2026-06-10 - Pre-allocate Arrays over Map in Batch Read
 **Learning:** In the cache batch-read hot path, mapping cached entries to values and creating set-entries arrays via `.map()` introduces significant iterator closure overhead and dynamic array resizing.
 **Action:** When creating dense structured arrays in performance-critical batch paths, pre-allocate the final array (e.g., `new Array(len)`) and use a single indexed `for` loop to populate elements directly to minimize GC pressure and improve throughput. Use `// eslint-disable-next-line unicorn/no-new-array` if needed.
+## 2026-06-17 - Avoid Array Spread and Map for Promise Collections in Hot Paths
+**Learning:** In hot batch paths, creating arrays of Promises using `Array.prototype.map()` and combining them using the spread operator (`...`) inside `push` or `Array.from()` introduces significant iterator closure overhead, array cloning, and dynamic resizing, which increases garbage collection pressure.
+**Action:** When constructing dense arrays of Promises in performance-critical batch paths, pre-allocate the arrays using `new Array<Promise<unknown>>(size)` and use an indexed `for` loop to populate the array directly, bypassing `.map()` and the spread operator.
