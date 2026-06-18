@@ -105,10 +105,11 @@ function safeDecodeURIComponent(component: string): string {
   try {
     return decodeURIComponent(component);
   } catch (err) {
-    if (err instanceof URIError) {
-      return component;
+    /* v8 ignore next 3 */
+    if (!(err instanceof URIError)) {
+      throw err;
     }
-    throw err;
+    return component;
   }
 }
 
