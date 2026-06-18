@@ -53,7 +53,7 @@ describe("idempotency-key", () => {
     customCommand.mockResolvedValueOnce({ complex: "object" });
     await expect(getAndDelete("key", { client })).resolves.toBe('{"complex":"object"}');
 
-    customCommand.mockResolvedValueOnce(() => {});
+    customCommand.mockResolvedValueOnce((() => {}) as any);
     await expect(getAndDelete("key", { client })).resolves.toBe("[unserializable]");
   });
 
