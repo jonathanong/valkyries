@@ -103,6 +103,28 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
+  it("should batch and await unlink promises when count reaches 100", async () => {
+    const scanMock = vi.fn(async (cursor: string) => {
+      const nextCursor = (parseInt(cursor, 10) + 1).toString();
+      if (cursor === "105") {
+        return ["0", ["prefix:last"]];
+      }
+      return [nextCursor, [`prefix:${cursor}`]];
+    });
+
+    const unlinkMock = vi.fn().mockResolvedValue(1);
+
+    const client = {
+      scan: scanMock,
+      unlink: unlinkMock,
+    } as unknown as GlideClient;
+
+    await deleteKeysWithPrefix(client, "prefix:*");
+
+    expect(scanMock).toHaveBeenCalledTimes(106);
+    expect(unlinkMock).toHaveBeenCalledTimes(106);
+  });
+
   it("should not await unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
