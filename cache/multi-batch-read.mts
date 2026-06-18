@@ -32,7 +32,12 @@ export async function multiCacheGetByAnyBatch<
 async function clusterSafePath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
-  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
+  // eslint-disable-next-line unicorn/no-new-array
+  const promises = new Array<Promise<Array<CacheValue>>>(configs.length);
+  for (let i = 0; i < configs.length; i++) {
+    promises[i] = configs[i].cache.getBatch(configs[i].keys);
+  }
+  return Promise.all(promises);
 }
 
 async function singleRoundTripPath(
