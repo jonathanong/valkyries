@@ -52,7 +52,13 @@ describe("clients.generated", () => {
   });
 
   it("glideConfigFromUrl throws error for invalid URL", () => {
-    expect(() => glideConfigFromUrl("not-a-url")).toThrow("Invalid Valkey URL");
+    expect(() => glideConfigFromUrl("not-a-url")).toThrow("Invalid Valkey URL provided");
+  });
+
+  it("glideConfigFromUrl does not leak credentials in error message", () => {
+    expect(() => glideConfigFromUrl("redis://user:pass@:::6379")).toThrow(
+      "Invalid Valkey URL provided",
+    );
   });
 
   it("glideConfigFromUrl allows overriding lazy connect", () => {

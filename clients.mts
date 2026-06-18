@@ -125,7 +125,7 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       requestTimeout: options?.requestTimeout ?? config.request_timeout_ms,
     };
   } catch (cause) {
-    throw new Error(`Invalid Valkey URL: ${url}`, { cause });
+    throw new Error("Invalid Valkey URL provided", { cause });
   }
 }
 
