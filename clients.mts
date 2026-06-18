@@ -101,6 +101,17 @@ export async function upsertValkeyClientByUrl(
   return await clientPromise;
 }
 
+function safeDecodeURIComponent(component: string): string {
+  try {
+    return decodeURIComponent(component);
+  } catch (err) {
+    if (err instanceof URIError) {
+      return component;
+    }
+    throw err;
+  }
+}
+
 export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
   try {
     const parsed = new URL(url);
@@ -115,8 +126,8 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       useTLS: parsed.protocol === "rediss:",
       credentials: parsed.password
         ? {
-            ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
-            password: decodeURIComponent(parsed.password),
+            ...(parsed.username ? { username: safeDecodeURIComponent(parsed.username) } : {}),
+            password: safeDecodeURIComponent(parsed.password),
           }
         : undefined,
       readFrom: options?.readFrom,
