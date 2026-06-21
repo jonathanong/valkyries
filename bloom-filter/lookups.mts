@@ -33,23 +33,29 @@ export async function mexists(
   state: BloomFilterState,
   items: string[],
 ): Promise<(boolean | null)[]> {
-  if (items.length === 0) return [];
+  const len = items.length;
+  if (len === 0) return [];
   const batches = buildBatches(items, luaBatchSize(state.batchSize));
   try {
-    const batchResults = await Promise.all(
-      batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsScript, {
-          keys: [state.liveKey],
-          args: batchItems,
-        }),
-      ),
-    );
-    const boolResults = normalizeBatchedResults(batches, batchResults);
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map() for script invocations.
+    // Why: Avoids iterator overhead for dynamic array allocation in this batching hot path.
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<unknown>>(batches.length);
+    for (let i = 0; i < batches.length; i++) {
+      promises[i] = state.client.invokeScript(bloomFilterMexistsScript, {
+        keys: [state.liveKey],
+        args: batches[i]!,
+      });
+    }
+    const batchResults = await Promise.all(promises);
+    const boolResults = normalizeBatchedResults(batches, batchResults, len);
     emitValkeyEvent("bloom-filter:mexists", { name: state.name, items, results: boolResults });
     return boolResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    return items.map(() => null);
+    // eslint-disable-next-line unicorn/no-new-array
+    return new Array<null>(len).fill(null);
   }
 }
 
@@ -77,18 +83,23 @@ export async function mexistsIfReady(
   readyKey: string,
   items: string[],
 ): Promise<(boolean | null)[]> {
-  if (items.length === 0) return [];
+  const len = items.length;
+  if (len === 0) return [];
   const batches = buildBatches(items, luaBatchSize(state.batchSize));
   try {
-    const batchResults = await Promise.all(
-      batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsIfReadyScript, {
-          keys: [readyKey, state.liveKey],
-          args: batchItems,
-        }),
-      ),
-    );
-    const normalizedResults = normalizeBatchedResults(batches, batchResults);
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map() for script invocations.
+    // Why: Avoids iterator overhead for dynamic array allocation in this batching hot path.
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<unknown>>(batches.length);
+    for (let i = 0; i < batches.length; i++) {
+      promises[i] = state.client.invokeScript(bloomFilterMexistsIfReadyScript, {
+        keys: [readyKey, state.liveKey],
+        args: batches[i]!,
+      });
+    }
+    const batchResults = await Promise.all(promises);
+    const normalizedResults = normalizeBatchedResults(batches, batchResults, len);
     emitValkeyEvent("bloom-filter:mexists", {
       name: state.name,
       items,
@@ -97,7 +108,8 @@ export async function mexistsIfReady(
     return normalizedResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    return items.map(() => null);
+    // eslint-disable-next-line unicorn/no-new-array
+    return new Array<null>(len).fill(null);
   }
 }
 
@@ -109,15 +121,29 @@ function buildBatches(items: string[], batchSize: number): string[][] {
   return batches;
 }
 
-function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): (boolean | null)[] {
-  const boolResults: (boolean | null)[] = [];
+function normalizeBatchedResults(
+  batches: string[][],
+  batchResults: unknown[],
+  totalItems: number,
+): (boolean | null)[] {
+  // ⚡ Bolt Optimization:
+  // What: Pre-allocate the final array and populate elements directly with an indexed loop.
+  // Why: Avoids `push(...arr.map())` which introduces iterator overhead and array resizing/cloning.
+  // Impact: Faster results processing with reduced GC pressure for large batches.
+  // eslint-disable-next-line unicorn/no-new-array
+  const boolResults = new Array<boolean | null>(totalItems);
+  let outputIndex = 0;
   for (let i = 0; i < batches.length; i++) {
     const batchItems = batches[i]!;
     const results = batchResults[i];
     if (!Array.isArray(results)) {
-      boolResults.push(...batchItems.map((): null => null));
+      for (let j = 0; j < batchItems.length; j++) {
+        boolResults[outputIndex++] = null;
+      }
     } else {
-      boolResults.push(...results.map(normalizeBloomCheckResult));
+      for (let j = 0; j < results.length; j++) {
+        boolResults[outputIndex++] = normalizeBloomCheckResult(results[j]);
+      }
     }
   }
   return boolResults;

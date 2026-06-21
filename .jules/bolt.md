@@ -8,3 +8,6 @@
 ## 2026-06-10 - Pre-allocate Arrays over Map in Batch Read
 **Learning:** In the cache batch-read hot path, mapping cached entries to values and creating set-entries arrays via `.map()` introduces significant iterator closure overhead and dynamic array resizing.
 **Action:** When creating dense structured arrays in performance-critical batch paths, pre-allocate the final array (e.g., `new Array(len)`) and use a single indexed `for` loop to populate elements directly to minimize GC pressure and improve throughput. Use `// eslint-disable-next-line unicorn/no-new-array` if needed.
+## 2026-06-21 - Pre-allocate Arrays over Spread & Map in Bloom Filter Batch Lookups
+**Learning:** In bloom filter batch lookups, processing batched Valkey script results with `.map()` and appending them to the output array via the spread operator (`...arr.map()`) introduces iterator overhead, causes dynamic array resizing, and risks stack overflow for very large batches.
+**Action:** When aggregating results from multiple batches into a single array in performance-critical paths, pre-allocate the final array (`new Array(totalItems)`) upfront and use indexed `for` loops to assign values directly to minimize GC pressure and improve throughput. Use `// eslint-disable-next-line unicorn/no-new-array` to bypass linting.
