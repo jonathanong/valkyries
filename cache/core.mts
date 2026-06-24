@@ -104,23 +104,28 @@ export abstract class ValkeyCacheCore<K = string> {
   } {
     const validKeys: K[] = [];
     const serializedKeys: string[] = [];
-    const outputIndices: number[] = [];
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate outputIndices array and use indexed assignment instead of .push().
+    // Why: Avoids dynamic array resizing during deduplication in hot paths.
+    // Impact: Reduces GC pressure and speeds up batch cache access.
+    // eslint-disable-next-line unicorn/no-new-array
+    const outputIndices: number[] = new Array(keys.length);
     const seen = new Map<string, number>();
     for (let i = 0; i < keys.length; i++) {
       const serialized = this.toSerializedKey(keys[i]);
       if (serialized === null) {
-        outputIndices.push(-1);
+        outputIndices[i] = -1;
         continue;
       }
       const existing = seen.get(serialized);
       if (existing !== undefined) {
-        outputIndices.push(existing);
+        outputIndices[i] = existing;
       } else {
         const idx = validKeys.length;
         seen.set(serialized, idx);
         validKeys.push(keys[i]);
         serializedKeys.push(serialized);
-        outputIndices.push(idx);
+        outputIndices[i] = idx;
       }
     }
     return { validKeys, serializedKeys, outputIndices };
@@ -146,7 +151,15 @@ export abstract class ValkeyCacheCore<K = string> {
     serializedKeys: string[];
   } {
     const { serializedKeys, outputIndices } = this.deduplicateKeys(keys);
-    const physicalKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map().
+    // Why: Avoids iterator closures and array resizing in the hot physical key generation path.
+    // Impact: Improves performance and reduces GC pressure for large batches.
+    // eslint-disable-next-line unicorn/no-new-array
+    const physicalKeys = new Array<string>(serializedKeys.length);
+    for (let i = 0; i < serializedKeys.length; i++) {
+      physicalKeys[i] = this.getSerializedCacheKey(serializedKeys[i]);
+    }
     return { physicalKeys, outputIndices, serializedKeys };
   }
 
@@ -197,7 +210,15 @@ export abstract class ValkeyCacheCore<K = string> {
 
   protected async getValuesWithTtl(serializedKeys: string[]): Promise<CacheEntry[]> {
     if (serializedKeys.length === 0) return [];
-    const cacheKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate cacheKeys array and use an indexed loop instead of .map().
+    // Why: Avoids iterator closures and array resizing in the hot script invocation path.
+    // Impact: Improves performance and reduces GC pressure for large batch fetches.
+    // eslint-disable-next-line unicorn/no-new-array
+    const cacheKeys = new Array<string>(serializedKeys.length);
+    for (let i = 0; i < serializedKeys.length; i++) {
+      cacheKeys[i] = this.getSerializedCacheKey(serializedKeys[i]);
+    }
     const bloomEnabled = this.bloomFilterEnabled?.() ?? true;
     const bloomFilterKey = bloomEnabled ? (this.bloomFilter?.getKey() ?? "") : "";
     const scriptResult = await retrySaturationError(
