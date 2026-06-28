@@ -204,10 +204,6 @@ export class DynamicConfig {
 
   getFields(): Record<string, DynamicConfigField> {
     const result: Record<string, DynamicConfigField> = {};
-    // ⚡ Bolt Optimization:
-    // What: Iterate over map using forEach instead of .entries()
-    // Why: Avoids iterator overhead and array tuple allocations on every iteration.
-    // Impact: Reduces GC pressure in hot paths.
     this.fields.forEach((value, name) => {
       result[name] = value;
     });
