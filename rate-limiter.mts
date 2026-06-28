@@ -227,7 +227,7 @@ export class RateLimiter {
       handleValkeyError(
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
       );
-      /* v8 ignore next 2 -- malformed script return requires a mocked corrupted Valkey response. */
+      /* v8 ignore next 3 -- malformed script return requires a mocked corrupted Valkey response. */
       // eslint-disable-next-line unicorn/no-new-array
       const counts: number[] = new Array(len);
       return { counts: counts.fill(0), limited: false };
