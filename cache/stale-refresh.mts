@@ -49,9 +49,10 @@ export abstract class ValkeyCacheStaleRefresh<K = string> extends ValkeyCacheCor
     try {
       const results = await batchFn(keys);
       if (!Array.isArray(results) || results.length !== keys.length) {
+        const actualResult = Array.isArray(results) ? results.length : typeof results;
         handleValkeyError(
           new Error(
-            `Stale batch refresh returned invalid result: expected array of ${keys.length} items, got ${Array.isArray(results) ? results.length : typeof results}`,
+            `Stale batch refresh returned invalid result: expected array of ${keys.length} items, got ${actualResult}`,
           ),
         );
         return;
