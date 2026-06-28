@@ -141,7 +141,7 @@ function normalizeBatchedResults(
         boolResults[outputIndex++] = null;
       }
     } else {
-      for (let j = 0; j < results.length; j++) {
+      for (let j = 0; j < batchItems.length; j++) {
         boolResults[outputIndex++] = normalizeBloomCheckResult(results[j]);
       }
     }
