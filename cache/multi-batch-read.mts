@@ -112,10 +112,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
   for (let i = 0; i < configsLen; i++) {
     const { physicalKeys, outputIndices } = perConfig[i];
     const offset = offsets[i];
-    const dedupedValues = decodedValues.slice(
-      offset,
-      offset + physicalKeys.length,
-    );
+    const dedupedValues = decodedValues.slice(offset, offset + physicalKeys.length);
 
     // Scatter back to original positions using outputIndices
     // eslint-disable-next-line unicorn/no-new-array
