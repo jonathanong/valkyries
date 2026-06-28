@@ -206,8 +206,9 @@ function collectMissingKeys<K, T>(
 
 function assertBatchResultLength(results: unknown, expectedLength: number) {
   if (!Array.isArray(results) || results.length !== expectedLength) {
+    const actual = Array.isArray(results) ? results.length : typeof results;
     throw new Error(
-      `Batch function returned invalid result: expected array of ${expectedLength} items, got ${Array.isArray(results) ? results.length : typeof results}`,
+      `Batch function returned invalid result: expected array of ${expectedLength} items, got ${actual}`,
     );
   }
 }
