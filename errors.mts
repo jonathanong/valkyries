@@ -12,6 +12,15 @@ export function setValkeyErrorHandler(handler: ValkeyErrorHandler): void {
 }
 
 export function handleValkeyError(error: unknown): void {
-  const normalized = error instanceof Error ? error : new Error(String(error));
+  let normalized: Error;
+  if (error instanceof Error) {
+    normalized = error;
+  } else {
+    try {
+      normalized = new Error(String(error));
+    } catch {
+      normalized = new Error("An unknown error occurred");
+    }
+  }
   valkeyErrorHandler(normalized);
 }

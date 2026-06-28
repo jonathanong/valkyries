@@ -14,11 +14,13 @@ export type RateLimiterOptions = {
   /** Optional Valkey client. Defaults to the package rate limiter client. */
   client?: GlideClient;
   /**
-   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   * Maximum number of retry attempts on inflight-saturation errors
+   * (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
    */
   inflightRetryAttempts?: number;
   /**
-   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Minimum delay in milliseconds between saturation-retry attempts
+   * (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
    * Actual delay is jittered in [delayMs, delayMs * 5].
    */
   inflightRetryDelayMs?: number;
@@ -42,14 +44,19 @@ export type RateLimiterWindow = {
 export type RateLimiterAddAndCheckWindowsOptions = {
   /** Optional Valkey client. Defaults to the package rate limiter client. */
   client?: GlideClient;
-  /** Stop processing later windows as soon as an earlier window is limited. Defaults to record-all. */
+  /**
+   * Stop processing later windows as soon as an earlier window is limited.
+   * Defaults to record-all.
+   */
   mode?: "record-all" | "stop-on-limited";
   /**
-   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   * Maximum number of retry attempts on inflight-saturation errors
+   * (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
    */
   inflightRetryAttempts?: number;
   /**
-   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Minimum delay in milliseconds between saturation-retry attempts
+   * (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
    * Actual delay is jittered in [delayMs, delayMs * 5].
    */
   inflightRetryDelayMs?: number;
@@ -62,7 +69,10 @@ export type ValkeyCacheOptions<K = string> = {
   ttlSeconds: number;
   /** The TTL in seconds for null values, defaults to ttlSeconds / 60 */
   nullTtlSeconds?: number;
-  /** The mode to use: 'json' (default) for JSON serialization, 'text' for raw text storage, 'buffer' for Buffer storage */
+  /**
+   * The mode to use: 'json' (default) for JSON serialization, 'text' for raw
+   * text storage, 'buffer' for Buffer storage
+   */
   mode?: "json" | "text" | "buffer";
   /**
    * Fraction of ttlSeconds representing the age threshold; values are stale when
@@ -71,9 +81,15 @@ export type ValkeyCacheOptions<K = string> = {
   staleTtlAge?: number;
   /** When false, stale cache hits are returned without a background refresh. Defaults to true. */
   staleRefresh?: boolean;
-  /** Optional bloom filter for negative lookups — skip DB calls for entities that definitely don't exist */
+  /**
+   * Optional bloom filter for negative lookups — skip DB calls for entities
+   * that definitely don't exist
+   */
   bloomFilter?: import("./bloom-filter.mts").ValkeyBloomFilter;
-  /** Optional runtime feature flag — if provided, called per-request; bloom filter is bypassed when it returns false */
+  /**
+   * Optional runtime feature flag — if provided, called per-request;
+   * bloom filter is bypassed when it returns false
+   */
   bloomFilterEnabled?: () => boolean;
   /** Optional Valkey client. Defaults to the package cache client. */
   client?: GlideClient;
@@ -85,11 +101,13 @@ export type ValkeyCacheOptions<K = string> = {
    */
   fallbackOnReadError?: boolean;
   /**
-   * Maximum number of retry attempts on inflight-saturation errors (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   * Maximum number of retry attempts on inflight-saturation errors
+   * (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
    */
   inflightRetryAttempts?: number;
   /**
-   * Minimum delay in milliseconds between saturation-retry attempts (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Minimum delay in milliseconds between saturation-retry attempts
+   * (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
    * Actual delay is jittered in [delayMs, delayMs * 5].
    */
   inflightRetryDelayMs?: number;

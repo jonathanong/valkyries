@@ -56,7 +56,7 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on an empty array.
+    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on empty array.
     // eslint-disable-next-line unicorn/no-new-array
     const args: string[] = new Array(keys.length + 1);
     args[0] = this.ttl.toString();
