@@ -196,8 +196,8 @@ export class RateLimiter {
     // What: Pre-allocate keys, args, and counts arrays and use indexed loops instead of .map() and iterators.
     // Why: Avoids iterator overhead, array resizing, and tuple destructuring allocations in this hot path.
     // Impact: Internal benchmarks show ~30-50% faster array building and results processing for large window batches.
-    const keys = Array.from<string>({ length: len });
-    const args = Array.from<string>({ length: len * 4 + 1 });
+    const keys = new Array<string>(len);
+    const args = new Array<string>(len * 4 + 1);
 
     // Unique-per-window UUID + index prevents predictability/collisions.
     const base = randomUUID();
@@ -223,16 +223,16 @@ export class RateLimiter {
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
       );
       /* v8 ignore next 2 -- malformed script return requires a mocked corrupted Valkey response. */
-      return { counts: Array.from({ length: len }).map(() => 0), limited: false };
+      return { counts: new Array<number>(len).fill(0), limited: false };
     }
 
-    const counts = Array.from<number>({ length: len });
+    const counts = new Array<number>(len);
     for (let i = 0; i < len; i++) {
       counts[i] = normalizeCountResult(results[i]);
     }
 
     const limited = normalizeCountResult(results[len]) === 1;
-    const wrote = Array.from<boolean>({ length: len });
+    const wrote = new Array<boolean>(len);
     const writeFlagOffset = len + 1;
     for (let i = 0; i < len; i++) {
       const writeFlag = results[writeFlagOffset + i];
