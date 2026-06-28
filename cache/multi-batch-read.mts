@@ -39,84 +39,45 @@ async function singleRoundTripPath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
   // Collect per-config metadata: physicalKeys, outputIndices, serializedKeys
-  // ⚡ Bolt Optimization:
-  // What: Pre-allocate array and use an indexed loop instead of .map().
-  // Why: Avoids iterator overhead and array resizing.
-  // Impact: Improves memory allocation performance for batch configurations.
-  const configsLen = configs.length;
-  // eslint-disable-next-line unicorn/no-new-array
-  const perConfig = new Array<{
-    physicalKeys: string[];
-    outputIndices: number[];
-    serializedKeys: string[];
-  }>(configsLen);
-  for (let i = 0; i < configsLen; i++) {
-    perConfig[i] = configs[i].cache.getPhysicalCacheKeys(configs[i].keys);
-  }
+  const perConfig = configs.map((cfg) => cfg.cache.getPhysicalCacheKeys(cfg.keys));
 
   // Build a flat list of all physical keys across all caches
   const allPhysicalKeys: string[] = [];
-  // eslint-disable-next-line unicorn/no-new-array
-  const offsets = new Array<number>(configsLen);
-  for (let i = 0; i < configsLen; i++) {
-    const { physicalKeys } = perConfig[i];
-    offsets[i] = allPhysicalKeys.length;
-    for (let j = 0; j < physicalKeys.length; j++) {
-      allPhysicalKeys.push(physicalKeys[j]);
-    }
+  const offsets: number[] = [];
+  for (const { physicalKeys } of perConfig) {
+    offsets.push(allPhysicalKeys.length);
+    for (const k of physicalKeys) allPhysicalKeys.push(k);
   }
 
-  const allPhysicalKeysLen = allPhysicalKeys.length;
-  if (allPhysicalKeysLen === 0) {
-    // eslint-disable-next-line unicorn/no-new-array
-    const emptyResults = new Array<Array<CacheValue>>(configsLen);
-    for (let i = 0; i < configsLen; i++) {
-      emptyResults[i] = Array<CacheValue>(configs[i].keys.length).fill(null);
-    }
-    return emptyResults;
+  if (allPhysicalKeys.length === 0) {
+    return configs.map((cfg) => Array<CacheValue>(cfg.keys.length).fill(null));
   }
 
-  // Use the first cache's client — all caches must share the same standalone client
-  // for this path to be safe. In cluster mode keys land on different slots, so MGET
-  // will fail unless all keys hash to the same slot, which they do not here.
   const client = configs[0].cache.getClient();
   const rawValues = await client.mget(allPhysicalKeys, { decoder: Decoder.Bytes });
 
-  // ⚡ Bolt Optimization:
-  // What: Pre-allocate an array of decode promises instead of nested sequential awaits.
-  // Why: MGET retrieves values simultaneously, but previously we sequentially decoded them in a loop.
-  //      By executing all Promise-based decoding operations concurrently with Promise.all,
-  //      we reduce time blocked on single-item async decoding steps (e.g. gzip decompression).
-  // Impact: Measurably reduces overall latency of large multi-batch read operations.
-  // eslint-disable-next-line unicorn/no-new-array
-  const decodePromises = new Array<Promise<CacheValue>>(allPhysicalKeysLen);
-  for (let i = 0; i < configsLen; i++) {
-    const { physicalKeys, serializedKeys } = perConfig[i];
+  // Distribute raw values back to each cache for decoding
+  const results: Array<Array<CacheValue>> = [];
+  for (let i = 0; i < configs.length; i++) {
+    const { physicalKeys, outputIndices, serializedKeys } = perConfig[i];
     const offset = offsets[i];
 
+    // Decode deduped results
+    // eslint-disable-next-line unicorn/no-new-array
+    const dedupedValues = new Array<CacheValue>(physicalKeys.length);
     for (let j = 0; j < physicalKeys.length; j++) {
       const raw = rawValues[offset + j] ?? null;
-      decodePromises[offset + j] = configs[i].cache.decodeRawValue(serializedKeys[j], raw);
+      dedupedValues[j] = await configs[i].cache.decodeRawValue(serializedKeys[j], raw);
     }
-  }
-
-  const decodedValues = await Promise.all(decodePromises);
-
-  // Distribute values back to each cache
-  // eslint-disable-next-line unicorn/no-new-array
-  const results = new Array<Array<CacheValue>>(configsLen);
-  for (let i = 0; i < configsLen; i++) {
-    const { outputIndices } = perConfig[i];
-    const offset = offsets[i];
 
     // Scatter back to original positions using outputIndices
     // eslint-disable-next-line unicorn/no-new-array
     const scattered = new Array<CacheValue>(outputIndices.length);
     for (let j = 0; j < outputIndices.length; j++) {
       const idx = outputIndices[j];
-      scattered[j] = idx === -1 ? null : decodedValues[offset + idx];
+      scattered[j] = idx === -1 ? null : dedupedValues[idx];
     }
-    results[i] = scattered;
+    results.push(scattered);
   }
 
   return results;
