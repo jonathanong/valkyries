@@ -83,8 +83,14 @@ export async function decodeValue(
   }
 
   return JSON.parse(text, (key, value) => {
-    if (key === "__proto__" || key === "constructor") {
+    if (key === "__proto__") {
       return undefined;
+    }
+    if (key === "constructor" && value !== null && typeof value === "object" && "prototype" in value) {
+      if (Object.prototype.hasOwnProperty.call(value, "prototype")) {
+        delete value.prototype;
+      }
+      return value;
     }
     return value;
   });

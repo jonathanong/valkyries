@@ -80,7 +80,7 @@ describe("cache.errors", () => {
 
     // Simulate malicious JSON payload in the cache
     const maliciousJson =
-      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}, "normal": "value"}';
+      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}, "tag": "safe"}, "normal": "value"}';
     const cacheKey = cache.getKey(key);
     await cacheValkeyClient.set(cacheKey, Buffer.from(maliciousJson, "utf8"));
 
@@ -92,10 +92,13 @@ describe("cache.errors", () => {
     expect(result.polluted).toBeUndefined();
     // @ts-expect-error - checking for __proto__ property
     expect(result.__proto__).not.toEqual({ polluted: true });
+    const decoded = result as Record<string, unknown>;
     // @ts-expect-error - checking for constructor property
-    expect(result.constructor?.prototype?.polluted).toBeUndefined();
+    expect((decoded.constructor as Record<string, unknown>).tag).toBe("safe");
+    // @ts-expect-error - checking constructor.prototype
+    expect((decoded.constructor as Record<string, unknown>).prototype).toBeUndefined();
     // Ensure normal values still load
-    expect((result as Record<string, unknown>).normal).toBe("value");
+    expect(decoded.normal).toBe("value");
 
     await cache.delete(key);
   });
