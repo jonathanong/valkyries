@@ -91,7 +91,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
   const client = configs[0].cache.getClient();
   const rawValues = await client.mget(allPhysicalKeys, { decoder: Decoder.Bytes });
 
-  // Decode all responses together to avoid per-value await chains.
+  // Decode all responses together to avoid per-config sequential await chains.
   // eslint-disable-next-line unicorn/no-new-array
   const decodePromises = new Array<Promise<CacheValue>>(allPhysicalKeysLen);
   // eslint-disable-next-line unicorn/no-new-array
@@ -106,20 +106,23 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
   }
 
   const decodedValues = await Promise.all(decodePromises);
-
   // Distribute values back to each cache
   // eslint-disable-next-line unicorn/no-new-array
   const results = new Array<Array<CacheValue>>(configsLen);
   for (let i = 0; i < configsLen; i++) {
-    const { outputIndices } = perConfig[i];
+    const { physicalKeys, outputIndices } = perConfig[i];
     const offset = offsets[i];
+    const dedupedValues = decodedValues.slice(
+      offset,
+      offset + physicalKeys.length,
+    );
 
     // Scatter back to original positions using outputIndices
     // eslint-disable-next-line unicorn/no-new-array
     const scattered = new Array<CacheValue>(outputIndices.length);
     for (let j = 0; j < outputIndices.length; j++) {
       const idx = outputIndices[j];
-      scattered[j] = idx === -1 ? null : decodedValues[offset + idx];
+      scattered[j] = idx === -1 ? null : dedupedValues[idx];
     }
     results[i] = scattered;
   }
