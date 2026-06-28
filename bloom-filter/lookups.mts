@@ -24,7 +24,7 @@ export async function exists(state: BloomFilterState, item: string): Promise<boo
     emitValkeyEvent("bloom-filter:exists", { name: state.name, item, result: boolResult });
     return boolResult;
   } catch (error) {
-    handleValkeyError(error as Error);
+    handleValkeyError(error);
     return null;
   }
 }
@@ -53,7 +53,7 @@ export async function mexists(
     emitValkeyEvent("bloom-filter:mexists", { name: state.name, items, results: boolResults });
     return boolResults;
   } catch (error) {
-    handleValkeyError(error as Error);
+    handleValkeyError(error);
     return buildNullResults(len);
   }
 }
@@ -72,7 +72,7 @@ export async function existsIfReady(
     emitValkeyEvent("bloom-filter:exists", { name: state.name, item, result: normalized });
     return normalized;
   } catch (error) {
-    handleValkeyError(error as Error);
+    handleValkeyError(error);
     return null;
   }
 }
@@ -106,7 +106,7 @@ export async function mexistsIfReady(
     });
     return normalizedResults;
   } catch (error) {
-    handleValkeyError(error as Error);
+    handleValkeyError(error);
     return buildNullResults(len);
   }
 }
