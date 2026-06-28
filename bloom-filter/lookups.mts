@@ -49,12 +49,7 @@ export async function mexists(
     return boolResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    // eslint-disable-next-line unicorn/no-new-array
-    const results = new Array<null>(items.length);
-    for (let i = 0; i < items.length; i++) {
-      results[i] = null;
-    }
-    return results;
+    return buildNullResults(items.length);
   }
 }
 
@@ -102,12 +97,7 @@ export async function mexistsIfReady(
     return normalizedResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    // eslint-disable-next-line unicorn/no-new-array
-    const results = new Array<null>(items.length);
-    for (let i = 0; i < items.length; i++) {
-      results[i] = null;
-    }
-    return results;
+    return buildNullResults(items.length);
   }
 }
 
@@ -136,10 +126,15 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
         boolResults[offset++] = null;
       }
     } else {
-      for (let j = 0; j < results.length; j++) {
-        boolResults[offset++] = normalizeBloomCheckResult(results[j]);
+      for (let j = 0; j < batchItems.length; j++) {
+        boolResults[offset++] = j < results.length ? normalizeBloomCheckResult(results[j]) : null;
       }
     }
   }
   return boolResults;
+}
+
+function buildNullResults(length: number): (null)[] {
+  // eslint-disable-next-line unicorn/no-new-array
+  return new Array<null>(length).fill(null);
 }
