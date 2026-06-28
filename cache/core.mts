@@ -210,14 +210,15 @@ export abstract class ValkeyCacheCore<K = string> {
   }
 
   protected async getValuesWithTtl(serializedKeys: string[]): Promise<CacheEntry[]> {
-    if (serializedKeys.length === 0) return [];
+    const len = serializedKeys.length;
+    if (len === 0) return [];
     // ⚡ Bolt Optimization:
     // What: Pre-allocate cacheKeys array and use an indexed loop instead of .map().
     // Why: Avoids iterator closures and array resizing in the hot script invocation path.
     // Impact: Improves performance and reduces GC pressure for large batch fetches.
     // eslint-disable-next-line unicorn/no-new-array
-    const cacheKeys = new Array<string>(serializedKeys.length);
-    for (let i = 0; i < serializedKeys.length; i++) {
+    const cacheKeys = new Array<string>(len);
+    for (let i = 0; i < len; i++) {
       cacheKeys[i] = this.getSerializedCacheKey(serializedKeys[i]);
     }
     const bloomEnabled = this.bloomFilterEnabled?.() ?? true;
@@ -232,9 +233,12 @@ export abstract class ValkeyCacheCore<K = string> {
       { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
     );
     const rawResults = Array.isArray(scriptResult) ? scriptResult : [];
-    return Promise.all(
-      serializedKeys.map((key, index) => this.decodeCacheEntry(key, rawResults, index)),
-    );
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<CacheEntry>>(len);
+    for (let i = 0; i < len; i++) {
+      promises[i] = this.decodeCacheEntry(serializedKeys[i], rawResults, i);
+    }
+    return Promise.all(promises);
   }
 
   protected shouldRefreshTtl(ttlSecondsRemaining: number | null) {

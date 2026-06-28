@@ -2,6 +2,11 @@ import { Decoder } from "@valkey/valkey-glide";
 import type { ValkeyCache } from "../cache.mts";
 
 type CacheValue = string | Buffer | Record<string, unknown> | null;
+type BatchConfig = { cache: ValkeyCache<any>; keys: any[] };
+type BatchResult<TConfigs extends ReadonlyArray<BatchConfig>> = {
+  [I in keyof TConfigs]: Array<CacheValue>;
+};
+type PhysicalCacheKeys = ReturnType<ValkeyCache<any>["getPhysicalCacheKeys"]>;
 
 /**
  * Reads keys from multiple ValkeyCache instances in a single operation.
@@ -15,43 +20,47 @@ type CacheValue = string | Buffer | Record<string, unknown> | null;
  * Returns a tuple-typed array where each element is the result array for the
  * corresponding config entry.
  */
-export async function multiCacheGetByAnyBatch<
-  TConfigs extends Array<{ cache: ValkeyCache<any>; keys: any[] }>,
->(
+export async function multiCacheGetByAnyBatch<TConfigs extends ReadonlyArray<BatchConfig>>(
   configs: TConfigs,
   options?: { clusterSafe?: boolean },
-): Promise<{ [I in keyof TConfigs]: Array<CacheValue> }> {
+): Promise<BatchResult<TConfigs>> {
   const clusterSafe = options?.clusterSafe ?? false;
 
   if (clusterSafe) {
-    return clusterSafePath(configs) as Promise<{ [I in keyof TConfigs]: Array<CacheValue> }>;
+    return clusterSafePath(configs);
   }
-  return singleRoundTripPath(configs) as Promise<{ [I in keyof TConfigs]: Array<CacheValue> }>;
+  return singleRoundTripPath(configs);
 }
 
-async function clusterSafePath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
-): Promise<Array<Array<CacheValue>>> {
-  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
-}
-
-async function singleRoundTripPath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
-): Promise<Array<Array<CacheValue>>> {
-  // Collect per-config metadata: physicalKeys, outputIndices, serializedKeys
-  // ⚡ Bolt Optimization:
-  // What: Pre-allocate array and use an indexed loop instead of .map().
-  // Why: Avoids iterator overhead and array resizing.
-  // Impact: Improves memory allocation performance for batch configurations.
+async function clusterSafePath<TConfigs extends ReadonlyArray<BatchConfig>>(
+  configs: TConfigs,
+): Promise<BatchResult<TConfigs>> {
+  // ⚡ Bolt Optimization: Use pre-allocated arrays and indexed loops instead of
+  // iterator-based map operations to reduce allocation and hot-path closure overhead.
+  if (configs.length === 0) {
+    return [] as BatchResult<TConfigs>;
+  }
   const configsLen = configs.length;
   // eslint-disable-next-line unicorn/no-new-array
-  const perConfig = new Array<{
-    physicalKeys: string[];
-    outputIndices: number[];
-    serializedKeys: string[];
-  }>(configsLen);
+  const promises = new Array<Promise<Array<CacheValue>>>(configsLen);
   for (let i = 0; i < configsLen; i++) {
-    perConfig[i] = configs[i].cache.getPhysicalCacheKeys(configs[i].keys);
+    const cfg = configs[i];
+    promises[i] = cfg.cache.getBatch(cfg.keys);
+  }
+  return Promise.all(promises) as Promise<BatchResult<TConfigs>>;
+}
+
+async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
+  configs: TConfigs,
+): Promise<BatchResult<TConfigs>> {
+  // ⚡ Bolt Optimization: Keep loops pre-allocated and decode values in batch
+  // to reduce allocation and asynchronous overhead.
+  const configsLen = configs.length;
+  // eslint-disable-next-line unicorn/no-new-array
+  const perConfig = new Array<PhysicalCacheKeys>(configsLen);
+  for (let i = 0; i < configsLen; i++) {
+    const cfg = configs[i];
+    perConfig[i] = cfg.cache.getPhysicalCacheKeys(cfg.keys);
   }
 
   // Build a flat list of all physical keys across all caches
@@ -73,7 +82,7 @@ async function singleRoundTripPath(
     for (let i = 0; i < configsLen; i++) {
       emptyResults[i] = Array<CacheValue>(configs[i].keys.length).fill(null);
     }
-    return emptyResults;
+    return emptyResults as BatchResult<TConfigs>;
   }
 
   // Use the first cache's client — all caches must share the same standalone client
@@ -82,14 +91,10 @@ async function singleRoundTripPath(
   const client = configs[0].cache.getClient();
   const rawValues = await client.mget(allPhysicalKeys, { decoder: Decoder.Bytes });
 
-  // ⚡ Bolt Optimization:
-  // What: Pre-allocate an array of decode promises instead of nested sequential awaits.
-  // Why: MGET retrieves values simultaneously, but previously we sequentially decoded them in a loop.
-  //      By executing all Promise-based decoding operations concurrently with Promise.all,
-  //      we reduce time blocked on single-item async decoding steps (e.g. gzip decompression).
-  // Impact: Measurably reduces overall latency of large multi-batch read operations.
+  // Decode all responses together to avoid per-value await chains.
   // eslint-disable-next-line unicorn/no-new-array
   const decodePromises = new Array<Promise<CacheValue>>(allPhysicalKeysLen);
+  // eslint-disable-next-line unicorn/no-new-array
   for (let i = 0; i < configsLen; i++) {
     const { physicalKeys, serializedKeys } = perConfig[i];
     const offset = offsets[i];
@@ -119,5 +124,5 @@ async function singleRoundTripPath(
     results[i] = scattered;
   }
 
-  return results;
+  return results as BatchResult<TConfigs>;
 }
