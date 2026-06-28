@@ -52,6 +52,14 @@ describe("clients.generated", () => {
     });
   });
 
+  it("glideConfigFromUrl decodes valid percent-encoded credentials", () => {
+    const config = glideConfigFromUrl("redis://user%40name:p%25ssword@localhost:6379");
+    expect(config.credentials).toEqual({
+      username: "user@name",
+      password: "p%ssword",
+    });
+  });
+
   it("glideConfigFromUrl treats username-only URL as unauthenticated", () => {
     // URLs with username but no password cannot form valid Valkey credentials (library requires password)
     // so credentials are omitted entirely, treating the connection as unauthenticated.
