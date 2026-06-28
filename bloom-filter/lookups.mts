@@ -114,10 +114,10 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
   for (let i = 0; i < batches.length; i++) {
     const batchItems = batches[i]!;
     const results = batchResults[i];
-    if (!Array.isArray(results)) {
-      boolResults.push(...batchItems.map((): null => null));
-    } else {
+    if (Array.isArray(results)) {
       boolResults.push(...results.map(normalizeBloomCheckResult));
+    } else {
+      boolResults.push(...batchItems.map((): null => null));
     }
   }
   return boolResults;
