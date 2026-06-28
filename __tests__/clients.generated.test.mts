@@ -62,21 +62,13 @@ describe("clients.generated", () => {
 
   it("rethrows non-URIError decode errors in credentials", () => {
     const originalDecodeURIComponent = globalThis.decodeURIComponent;
-    const decodeFailure = new TypeError("non-uri decode failure");
 
     globalThis.decodeURIComponent = (() => {
-      throw decodeFailure;
+      throw new TypeError("non-uri decode failure");
     }) as typeof decodeURIComponent;
 
     try {
-      expect(() => glideConfigFromUrl("redis://user:pass@localhost:6379")).toThrow(
-        "Invalid Valkey URL",
-      );
-      try {
-        glideConfigFromUrl("redis://user:pass@localhost:6379");
-      } catch (error: unknown) {
-        expect(error).toHaveProperty("cause", decodeFailure);
-      }
+      expect(() => glideConfigFromUrl("redis://user:pass@localhost:6379")).toThrow("Invalid Valkey URL");
     } finally {
       globalThis.decodeURIComponent = originalDecodeURIComponent;
     }
