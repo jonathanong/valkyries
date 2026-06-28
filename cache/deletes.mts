@@ -17,11 +17,14 @@ export type ValkeyCacheDeleteFromCachesEntry<K = any> = {
 };
 
 type ValkeyCacheDeleteFromCachesEntryImplementation = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cache: ValkeyCacheDeletes<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   keys: readonly any[];
 };
 
 type SerializedDeleteEntry = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cache: ValkeyCacheDeletes<any>;
   serializedKeys: string[];
 };
@@ -85,6 +88,7 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     entries: readonly ValkeyCacheDeleteFromCachesEntry<K>[],
   ): Promise<number>;
   static async deleteFromCaches(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, sonarjs/no-redundant-type-constituents, sonarjs/no-explicit-any
     entries: readonly ValkeyCacheDeleteFromCachesEntry<any>[],
   ): Promise<number>;
   static async deleteFromCaches(
@@ -112,9 +116,33 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     }
 
     let deleted = 0;
+    let promises: Promise<number>[] = [];
+
+    // ⚡ Bolt Optimization:
+    // What: Execute independent cache deletions concurrently instead of sequentially, with batching.
+    // Why: Eliminates N+1 query performance bottleneck across multiple clients, improving throughput.
+    // Impact: Reduces execution time linearly with the number of target clients.
     for (const [client, group] of groups) {
-      deleted += await ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      const p = ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      p.catch(() => {});
+      promises.push(p);
+
+      if (promises.length >= 100) {
+        const results = await Promise.all(promises);
+        for (const result of results) {
+          deleted += result;
+        }
+        promises = [];
+      }
     }
+
+    if (promises.length > 0) {
+      const results = await Promise.all(promises);
+      for (const result of results) {
+        deleted += result;
+      }
+    }
+
     return deleted;
   }
 

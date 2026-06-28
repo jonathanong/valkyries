@@ -109,15 +109,19 @@ function buildBatches(items: string[], batchSize: number): string[][] {
   return batches;
 }
 
-function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): (boolean | null)[] {
-  const boolResults: (boolean | null)[] = [];
+function normalizeBatchedResults(
+  batches: readonly string[][],
+  batchResults: readonly unknown[],
+): (boolean | null)[] {
+  const boolResults = new Array<boolean | null>();
   for (let i = 0; i < batches.length; i++) {
     const batchItems = batches[i]!;
     const results = batchResults[i];
     if (!Array.isArray(results)) {
-      boolResults.push(...batchItems.map((): null => null));
+      for (let j = 0; j < batchItems.length; j++) boolResults.push(null);
     } else {
-      boolResults.push(...results.map(normalizeBloomCheckResult));
+      for (let j = 0; j < results.length; j++)
+        boolResults.push(normalizeBloomCheckResult(results[j]));
     }
   }
   return boolResults;

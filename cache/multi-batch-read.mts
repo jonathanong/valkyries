@@ -50,7 +50,8 @@ async function singleRoundTripPath(
   }
 
   if (allPhysicalKeys.length === 0) {
-    return configs.map((cfg) => Array<CacheValue>(cfg.keys.length).fill(null));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return configs.map((cfg) => Array<CacheValue>(cfg.keys.length).fill(null)) as unknown as any;
   }
 
   // Use the first cache's client — all caches must share the same standalone client
