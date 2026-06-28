@@ -124,7 +124,7 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       inflightRequestsLimit: options?.inflightRequestsLimit ?? config.inflight_requests_limit,
       requestTimeout: options?.requestTimeout ?? config.request_timeout_ms,
     };
-  } catch (cause) {
+  } catch {
     throw new Error("Invalid Valkey URL provided");
   }
 }
