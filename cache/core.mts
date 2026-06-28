@@ -102,15 +102,13 @@ export abstract class ValkeyCacheCore<K = string> {
     serializedKeys: string[];
     outputIndices: number[];
   } {
-    const validKeys: K[] = [];
-    const serializedKeys: string[] = [];
-    // ⚡ Bolt Optimization:
-    // What: Pre-allocate outputIndices array and use indexed assignment instead of .push().
-    // Why: Avoids dynamic array resizing during deduplication in hot paths.
-    // Impact: Reduces GC pressure and speeds up batch cache access.
-    // eslint-disable-next-line unicorn/no-new-array
+    /* eslint-disable unicorn/no-new-array */
+    const validKeys: K[] = new Array(keys.length);
+    const serializedKeys: string[] = new Array(keys.length);
     const outputIndices: number[] = new Array(keys.length);
+    /* eslint-enable unicorn/no-new-array */
     const seen = new Map<string, number>();
+    let validCount = 0;
     for (let i = 0; i < keys.length; i++) {
       const serialized = this.toSerializedKey(keys[i]);
       if (serialized === null) {
@@ -121,13 +119,16 @@ export abstract class ValkeyCacheCore<K = string> {
       if (existing !== undefined) {
         outputIndices[i] = existing;
       } else {
-        const idx = validKeys.length;
+        const idx = validCount;
         seen.set(serialized, idx);
-        validKeys.push(keys[i]);
-        serializedKeys.push(serialized);
+        validKeys[idx] = keys[i];
+        serializedKeys[idx] = serialized;
+        validCount++;
         outputIndices[i] = idx;
       }
     }
+    validKeys.length = validCount;
+    serializedKeys.length = validCount;
     return { validKeys, serializedKeys, outputIndices };
   }
 
