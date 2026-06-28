@@ -24,20 +24,22 @@ export async function multiCacheGetByAnyBatch<
   const clusterSafe = options?.clusterSafe ?? false;
 
   if (clusterSafe) {
-    return clusterSafePath(configs) as Promise<{ [I in keyof TConfigs]: Array<CacheValue> }>;
+    return clusterSafePath(configs);
   }
-  return singleRoundTripPath(configs) as Promise<{ [I in keyof TConfigs]: Array<CacheValue> }>;
+  return singleRoundTripPath(configs);
 }
 
-async function clusterSafePath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
-): Promise<Array<Array<CacheValue>>> {
-  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
+async function clusterSafePath<TConfigs extends Array<{ cache: ValkeyCache<any>; keys: any[] }>>(
+  configs: TConfigs,
+): Promise<{ [I in keyof TConfigs]: Array<CacheValue> }> {
+  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys))) as unknown as Promise<{
+    [I in keyof TConfigs]: Array<CacheValue>;
+  }>;
 }
 
-async function singleRoundTripPath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
-): Promise<Array<Array<CacheValue>>> {
+async function singleRoundTripPath<
+  TConfigs extends Array<{ cache: ValkeyCache<any>; keys: any[] }>,
+>(configs: TConfigs): Promise<{ [I in keyof TConfigs]: Array<CacheValue> }> {
   // Collect per-config metadata: physicalKeys, outputIndices, serializedKeys
   // ⚡ Bolt Optimization:
   // What: Pre-allocate array and use an indexed loop instead of .map().
@@ -73,7 +75,7 @@ async function singleRoundTripPath(
     for (let i = 0; i < configsLen; i++) {
       emptyResults[i] = Array<CacheValue>(configs[i].keys.length).fill(null);
     }
-    return emptyResults;
+    return emptyResults as unknown as { [I in keyof TConfigs]: Array<CacheValue> };
   }
 
   // Use the first cache's client — all caches must share the same standalone client
@@ -119,5 +121,5 @@ async function singleRoundTripPath(
     results[i] = scattered;
   }
 
-  return results;
+  return results as unknown as { [I in keyof TConfigs]: Array<CacheValue> };
 }
