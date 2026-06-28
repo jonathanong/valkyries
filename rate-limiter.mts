@@ -56,8 +56,8 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on empty array
-    const args = Array.from<string>({ length: keys.length + 1 });
+    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on an empty array.
+    const args = new Array<string>(keys.length + 1);
     args[0] = this.ttl.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
@@ -92,8 +92,8 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on empty array
-    const args = Array.from<string>({ length: keys.length + 1 });
+    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length on an empty array.
+    const args = new Array<string>(keys.length + 1);
     args[0] = ttlSeconds.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;

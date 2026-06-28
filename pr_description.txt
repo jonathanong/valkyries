@@ -1,0 +1,3 @@
+🎯 **What:** The testing gap in `ensureDynamicConfigValkeySubscriptionClient` error handling (specifically testing that `handleValkeyError` was invoked and the promise cached state behaviors) has been addressed.
+📊 **Coverage:** The test now explicitly asserts that the global `handleValkeyError` is correctly invoked on a promise rejection when creating a new Glide client. It also asserts that on consecutive calls the returned promise is the same, reducing redundant client creation requests.
+✨ **Result:** Enhanced the reliability and accuracy of `ensureDynamicConfigValkeySubscriptionClient`'s test coverage, securing its failure paths against silent regressions.

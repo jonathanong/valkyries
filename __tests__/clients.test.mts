@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { GlideClient } from "@valkey/valkey-glide";
+import { setValkeyErrorHandler } from "../errors.mts";
 import {
   cacheValkeyClient,
   rateLimiterValkeyClient,
@@ -29,6 +30,7 @@ describe("clients exports and pubsub", () => {
   describe("pubsub message handlers", () => {
     afterEach(async () => {
       await closeDynamicConfigValkeySubscriptionClient();
+      setValkeyErrorHandler(() => {});
       vi.restoreAllMocks();
     });
 
@@ -56,21 +58,32 @@ describe("clients exports and pubsub", () => {
     });
 
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
+      const handleError = vi.fn();
+      setValkeyErrorHandler(handleError);
       const error = new Error("Connection failed");
-      vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
+      const createClientSpy = vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
 
       await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
         "Connection failed",
       );
 
+      expect(handleError).toHaveBeenCalledTimes(1);
+      expect(handleError).toHaveBeenCalledWith(error);
+
       const successClient = {
         punsubscribe: vi.fn(),
         close: vi.fn(),
       } as unknown as GlideClient;
-      vi.spyOn(GlideClient, "createClient").mockResolvedValueOnce(successClient);
+      createClientSpy.mockResolvedValueOnce(successClient);
 
       const client = await ensureDynamicConfigValkeySubscriptionClient();
       expect(client).toBe(successClient);
+
+      // The second call to ensureDynamicConfigValkeySubscriptionClient returns the already cached promise.
+      const client2 = await ensureDynamicConfigValkeySubscriptionClient();
+      expect(client2).toBe(successClient);
+
+      expect(createClientSpy).toHaveBeenCalledTimes(2);
     });
 
     it("closeDynamicConfigValkeySubscriptionClient works safely when called multiple times or when empty", async () => {

@@ -55,6 +55,8 @@ describe("scripts", () => {
   it("registerScript ignores script.release() errors in the exit hook", async () => {
     const processOnceSpy = vi.spyOn(process, "once").mockImplementation(() => process);
 
+    const stderrWriteSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
     const { registerScript } = await import("../scripts.mts");
     const script = registerScript("return 1");
 
@@ -63,10 +65,9 @@ describe("scripts", () => {
     const releaseSpy = vi.spyOn(script, "release").mockImplementation(() => {
       throw new Error("Release failed");
     });
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => exitHandler()).not.toThrow();
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
+    expect(stderrWriteSpy).toHaveBeenCalledWith("Error: Release failed\n");
 
     releaseSpy.mockRestore();
     script.release();
