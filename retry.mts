@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 /**
  * Substring patterns that identify transient Valkey / Glide errors which are safe to retry.
  * These originate from the @valkey/valkey-glide native Rust core.
@@ -74,7 +76,7 @@ export async function retryValkeyOperation<T>(
       if (!shouldRetry(error)) throw error;
       lastError = error;
       if (attempt < maxAttempts - 1) {
-        const waitMs = jitter ? delayMs + Math.random() * (delayMs * 4) : delayMs;
+        const waitMs = jitter ? delayMs + randomInt(Math.floor(delayMs * 4) + 1) : delayMs;
         await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       }
     }
