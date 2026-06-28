@@ -150,10 +150,10 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     // What: Pre-allocate keys and args arrays and use indexed loops instead of .map() and iterators.
     // Why: Avoids iterator overhead, array resizing, and tuple destructuring allocations in hot path.
     // Impact: ~1.78x faster array building for batch invalidations.
-    // eslint-disable-next-line unicorn/no-new-array
-    const keys = new Array<string>(len * 2);
-    // eslint-disable-next-line unicorn/no-new-array
-    const args = new Array<GlideString>(len * 2 + 1);
+    const keys: Array<string> = [];
+    keys.length = len * 2;
+    const args: Array<GlideString> = [];
+    args.length = len * 2 + 1;
     args[0] = String(len);
 
     for (let i = 0; i < len; i++) {

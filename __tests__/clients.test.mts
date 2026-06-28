@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { GlideClient } from "@valkey/valkey-glide";
+import { setValkeyErrorHandler } from "../errors.mts";
 import {
   cacheValkeyClient,
   rateLimiterValkeyClient,
@@ -29,6 +30,7 @@ describe("clients exports and pubsub", () => {
   describe("pubsub message handlers", () => {
     afterEach(async () => {
       await closeDynamicConfigValkeySubscriptionClient();
+      setValkeyErrorHandler(() => {});
       vi.restoreAllMocks();
     });
 
@@ -55,22 +57,57 @@ describe("clients exports and pubsub", () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
+    it("removePubSubMessageHandler explicitly removes a specific handler without affecting others", () => {
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+      addPubSubMessageHandler(handler1);
+      addPubSubMessageHandler(handler2);
+
+      removePubSubMessageHandler(handler1);
+
+      const config = buildDynamicConfigSubscriptionClientConfig("redis://localhost:6379");
+      const callback = config.pubsubSubscriptions.callback;
+      const mockMsg = { channel: "dynamic-config:test", message: "hello" };
+      callback(mockMsg);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledWith(mockMsg);
+
+      removePubSubMessageHandler(handler2);
+    });
+
+    it("removePubSubMessageHandler safely handles removing a non-existent handler", () => {
+      const handler = vi.fn();
+      expect(() => removePubSubMessageHandler(handler)).not.toThrow();
+    });
+
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
+      const handleError = vi.fn();
+      setValkeyErrorHandler(handleError);
       const error = new Error("Connection failed");
-      vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
+      const createClientSpy = vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
 
       await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
         "Connection failed",
       );
 
+      expect(handleError).toHaveBeenCalledTimes(1);
+      expect(handleError).toHaveBeenCalledWith(error);
+
       const successClient = {
         punsubscribe: vi.fn(),
         close: vi.fn(),
       } as unknown as GlideClient;
-      vi.spyOn(GlideClient, "createClient").mockResolvedValueOnce(successClient);
+      createClientSpy.mockResolvedValueOnce(successClient);
 
       const client = await ensureDynamicConfigValkeySubscriptionClient();
       expect(client).toBe(successClient);
+
+      // The second call to ensureDynamicConfigValkeySubscriptionClient returns the already cached promise.
+      const client2 = await ensureDynamicConfigValkeySubscriptionClient();
+      expect(client2).toBe(successClient);
+
+      expect(createClientSpy).toHaveBeenCalledTimes(2);
     });
 
     it("closeDynamicConfigValkeySubscriptionClient works safely when called multiple times or when empty", async () => {
