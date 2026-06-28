@@ -144,7 +144,7 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
   return boolResults;
 }
 
-function buildNullResults(length: number): (null)[] {
+function buildNullResults(length: number): null[] {
   // eslint-disable-next-line unicorn/no-new-array
   return new Array<null>(length).fill(null);
 }
