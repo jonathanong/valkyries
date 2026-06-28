@@ -11,7 +11,7 @@ import {
 } from "./constants.mts";
 import { ValkeyCacheMutations } from "./mutations.mts";
 
-export type ValkeyCacheDeleteFromCachesEntry<K = unknown> = {
+export type ValkeyCacheDeleteFromCachesEntry<K = any> = {
   cache: ValkeyCache<K>;
   keys: readonly K[];
 };
