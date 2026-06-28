@@ -36,6 +36,13 @@ async function clusterSafePath(
   // What: Pre-allocate array and use for loop instead of configs.map().
   // Why: Avoids iterator closure overhead and dynamic array resizing in hot paths.
   // Impact: Reduces GC pressure and improves throughput.
+  // ⚡ Bolt Optimization:
+  // What: Skip unnecessary work for empty input.
+  // Why: Return early avoids allocation plus Promise overhead.
+  // Impact: Faster no-op path for empty calls.
+  if (configs.length === 0) {
+    return [];
+  }
   // eslint-disable-next-line unicorn/no-new-array
   const promises = new Array<Promise<Array<CacheValue>>>(configs.length);
   for (let i = 0; i < configs.length; i++) {
