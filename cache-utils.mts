@@ -82,5 +82,10 @@ export async function decodeValue(
     return text;
   }
 
-  return JSON.parse(text);
+  return JSON.parse(text, (key, value) => {
+    if (key === "__proto__" || key === "constructor") {
+      return undefined;
+    }
+    return value;
+  });
 }
