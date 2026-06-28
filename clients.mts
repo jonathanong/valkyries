@@ -104,12 +104,12 @@ export async function upsertValkeyClientByUrl(
 function safeDecodeURIComponent(component: string): string {
   try {
     return decodeURIComponent(component);
-  } catch (err: unknown) {
+  } catch (err) {
     /* v8 ignore next 3 */
-    if (err instanceof URIError) {
-      return component;
+    if (!(err instanceof URIError)) {
+      throw err;
     }
-    throw err;
+    return component;
   }
 }
 
