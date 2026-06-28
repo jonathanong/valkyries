@@ -37,7 +37,15 @@ async function processBatch(state: BloomFilterState, batch: string[]): Promise<v
     // eslint-disable-next-line unicorn/no-new-array
     const promises = new Array<Promise<unknown>>(sliceLen);
     for (let j = 0; j < sliceLen; j++) {
-      promises[j] = state.client.customCommand(["BF.MADD", state.buildingKey, ...slice[j]!]);
+      const sliceItem = slice[j]!;
+      // eslint-disable-next-line unicorn/no-new-array
+      const cmd = new Array<string>(2 + sliceItem.length);
+      cmd[0] = "BF.MADD";
+      cmd[1] = state.buildingKey;
+      for (let k = 0; k < sliceItem.length; k++) {
+        cmd[2 + k] = sliceItem[k]!;
+      }
+      promises[j] = state.client.customCommand(cmd);
     }
     const settled = await Promise.allSettled(promises);
 
