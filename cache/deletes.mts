@@ -120,10 +120,20 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
       promises.push(ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group));
     });
 
-    const results = await Promise.all(promises);
+    const results = await Promise.allSettled(promises);
     let deleted = 0;
+    let firstError: unknown = undefined;
     for (let i = 0; i < results.length; i++) {
-      deleted += results[i];
+      const result = results[i];
+      if (result.status === "fulfilled") {
+        deleted += result.value;
+      } else if (firstError === undefined) {
+        firstError = result.reason;
+      }
+    }
+
+    if (firstError) {
+      throw firstError;
     }
     return deleted;
   }
