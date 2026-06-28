@@ -102,9 +102,9 @@ describe("ValkeyCache.deleteFromCaches", () => {
     const secondPromise = new Promise<number>((resolve) => {
       resolveSecond = resolve;
     });
-    const firstInvokeScript = vi.fn<GlideClient["invokeScript"]>().mockRejectedValue(
-      new Error("first client failed"),
-    );
+    const firstInvokeScript = vi
+      .fn<GlideClient["invokeScript"]>()
+      .mockRejectedValue(new Error("first client failed"));
     const secondInvokeScript = vi.fn<GlideClient["invokeScript"]>().mockReturnValue(secondPromise);
     const firstClient = { invokeScript: firstInvokeScript } as unknown as GlideClient;
     const secondClient = { invokeScript: secondInvokeScript } as unknown as GlideClient;
