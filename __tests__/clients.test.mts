@@ -79,6 +79,36 @@ describe("clients exports and pubsub", () => {
       expect(() => removePubSubMessageHandler(handler)).not.toThrow();
     });
 
+    it("addPubSubMessageHandler supports multiple handlers and handles deduplication (Set behavior)", () => {
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+
+      // Add multiple handlers
+      addPubSubMessageHandler(handler1);
+      addPubSubMessageHandler(handler2);
+
+      // Add handler1 again to test Set deduplication
+      addPubSubMessageHandler(handler1);
+
+      const config = buildDynamicConfigSubscriptionClientConfig("redis://localhost:6379");
+      const callback = config.pubsubSubscriptions.callback;
+
+      const mockMsg = { channel: "dynamic-config:multiple", message: "broadcast" };
+      callback(mockMsg);
+
+      // Both should be called
+      expect(handler1).toHaveBeenCalledWith(mockMsg);
+      expect(handler2).toHaveBeenCalledWith(mockMsg);
+
+      // handler1 should only be called once per event despite being added twice
+      expect(handler1).toHaveBeenCalledTimes(1);
+      expect(handler2).toHaveBeenCalledTimes(1);
+
+      // Cleanup
+      removePubSubMessageHandler(handler1);
+      removePubSubMessageHandler(handler2);
+    });
+
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
       const error = new Error("Connection failed");
       vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);

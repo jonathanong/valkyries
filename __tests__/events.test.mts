@@ -7,6 +7,34 @@ describe("events", () => {
     vi.restoreAllMocks();
   });
 
+  describe("valkeyEvents", () => {
+    it("should allow subscribing to and receiving events", () => {
+      const listenerSpy = vi.fn();
+      valkeyEvents.on("cache:invalidate", listenerSpy);
+
+      valkeyEvents.emit("cache:invalidate", { cacheName: "test-cache" });
+
+      expect(listenerSpy).toHaveBeenCalledTimes(1);
+      expect(listenerSpy).toHaveBeenCalledWith({ cacheName: "test-cache" });
+
+      valkeyEvents.off("cache:invalidate", listenerSpy);
+    });
+
+    it("should allow unsubscribing from events", () => {
+      const listenerSpy = vi.fn();
+      valkeyEvents.on("cache:invalidate", listenerSpy);
+      valkeyEvents.off("cache:invalidate", listenerSpy);
+
+      valkeyEvents.emit("cache:invalidate", { cacheName: "test-cache" });
+
+      expect(listenerSpy).not.toHaveBeenCalled();
+    });
+
+    it("should have max listeners set correctly in test environment", () => {
+      expect(valkeyEvents.getMaxListeners()).toBe(1000);
+    });
+  });
+
   describe("emitValkeyEvent", () => {
     it("should emit an event successfully", () => {
       const emitSpy = vi.spyOn(valkeyEvents, "emit");
