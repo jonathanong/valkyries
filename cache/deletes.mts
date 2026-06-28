@@ -111,9 +111,19 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
       }
     }
 
+    // ⚡ Bolt Optimization:
+    // What: Process cache deletes concurrently across clients and use Map.forEach.
+    // Why: Avoids sequential network round-trips and Map.entries() iterator overhead.
+    // Impact: Reduces total latency for cross-client operations and avoids GC allocations for iterator tuples.
+    const promises: Promise<number>[] = [];
+    groups.forEach((group, client) => {
+      promises.push(ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group));
+    });
+
+    const results = await Promise.all(promises);
     let deleted = 0;
-    for (const [client, group] of groups) {
-      deleted += await ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+    for (let i = 0; i < results.length; i++) {
+      deleted += results[i];
     }
     return deleted;
   }
