@@ -31,8 +31,8 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
       // Why: Reduces array allocation and iterator overhead in hot scatter path.
       // Impact: Significantly faster execution (~5x) compared to map.
       const scatter = (normalized: Array<T | null>): Array<T | null> => {
-        // eslint-disable-next-line unicorn/no-new-array
-        const scattered = new Array(outputIndices.length);
+        const scattered = [];
+        scattered.length = outputIndices.length;
         for (let i = 0; i < outputIndices.length; i++) {
           const idx = outputIndices[i];
           scattered[i] = idx === -1 ? null : normalized[idx];
@@ -58,8 +58,8 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         // Why: Avoids iterator closure overhead and dynamic array resizing in this hot caching path.
         // Impact: Internal benchmarks show ~2x faster array allocation for large batch reads.
         const cachedEntriesLen = cachedEntries.length;
-        // eslint-disable-next-line unicorn/no-new-array
-        const cachedValues = new Array<T | null>(cachedEntriesLen);
+        const cachedValues: Array<T | null> = [];
+        cachedValues.length = cachedEntriesLen;
         for (let i = 0; i < cachedEntriesLen; i++) {
           cachedValues[i] = cachedEntries[i]!.value as T | null;
         }
@@ -80,10 +80,8 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         const results = mergeFetchedResults(cachedValues, missing.indices, fetchedResults);
 
         const missingLen = missing.keys.length;
-        // eslint-disable-next-line unicorn/no-new-array
-        const setEntries = new Array<{ key: K; value: T | null; ttl: number | undefined }>(
-          missingLen,
-        );
+        const setEntries: Array<{ key: K; value: T | null; ttl: number | undefined }> = [];
+        setEntries.length = missingLen;
         for (let i = 0; i < missingLen; i++) {
           const value = fetchedResults[i] ?? null;
           setEntries[i] = {
@@ -115,8 +113,8 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
       // What: Pre-allocate values and final output arrays and use for loops instead of entries.map and outputIndices.map.
       // Why: Eliminates iterator closures and dynamic array sizing in the hot getBatch path.
       // Impact: Faster throughput and reduced garbage collection pressure.
-      // eslint-disable-next-line unicorn/no-new-array
-      const values = new Array(entries.length);
+      const values = [];
+      values.length = entries.length;
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         if (entry.bloomMiss) {
@@ -136,8 +134,8 @@ export abstract class ValkeyCacheBatchRead<K = string> extends ValkeyCacheSingle
         values[i] = entry.value;
       }
 
-      // eslint-disable-next-line unicorn/no-new-array
-      const result = new Array(outputIndices.length);
+      const result = [];
+      result.length = outputIndices.length;
       for (let i = 0; i < outputIndices.length; i++) {
         const idx = outputIndices[i];
         result[i] = idx === -1 ? null : values[idx];

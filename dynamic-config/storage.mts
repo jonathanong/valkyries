@@ -80,8 +80,8 @@ export function buildMissingDefaultWrites({
   fieldsMap: Record<string, { field: unknown; value: unknown }>;
   fieldsConfig: { name: string; type: DynamicConfigFieldType; defaultValue: DynamicConfigField }[];
 }) {
-  // eslint-disable-next-line unicorn/no-new-array
-  const toApply: [string, DynamicConfigField][] = new Array(fieldsConfig.length);
+  const toApply: [string, DynamicConfigField][] = [];
+  toApply.length = fieldsConfig.length;
   const writeArgs: string[] = [];
   // ⚡ Bolt Optimization:
   // What: Iterate over pre-merged fieldsConfig instead of Object.keys(fieldTypes).
