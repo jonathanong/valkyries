@@ -120,23 +120,48 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     // Impact: Reduces execution time linearly with the number of target clients.
     for (const [client, group] of groups) {
       const p = ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
-      p.catch(() => {});
       promises.push(p);
 
       if (promises.length >= 100) {
-        const results = await Promise.all(promises);
+        const results = await Promise.allSettled(promises);
+        let batchDeleted = 0;
+        let failure: unknown = null;
+
         for (let i = 0; i < results.length; i++) {
-          deleted += results[i];
+          const result = results[i];
+          if (result.status === "fulfilled") {
+            batchDeleted += result.value;
+          } else if (failure === null) {
+            failure = result.reason;
+          }
         }
+
+        if (failure !== null) {
+          throw failure;
+        }
+        deleted += batchDeleted;
         promises = [];
       }
     }
 
     if (promises.length > 0) {
-      const results = await Promise.all(promises);
+      const results = await Promise.allSettled(promises);
+      let batchDeleted = 0;
+      let failure: unknown = null;
+
       for (let i = 0; i < results.length; i++) {
-        deleted += results[i];
+        const result = results[i];
+        if (result.status === "fulfilled") {
+          batchDeleted += result.value;
+        } else if (failure === null) {
+          failure = result.reason;
+        }
       }
+
+      if (failure !== null) {
+        throw failure;
+      }
+      deleted += batchDeleted;
     }
 
     return deleted;
