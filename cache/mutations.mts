@@ -64,7 +64,8 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     // eslint-disable-next-line unicorn/no-new-array
     const serializePromises = new Array<Promise<string | Buffer>>(validEntries.length);
     for (let i = 0; i < validEntries.length; i++) {
-      serializePromises[i] = this.serializeValue(validEntries[i]!.value);
+      const entry = validEntries[i]!;
+      serializePromises[i] = this.serializeValue(entry.value);
     }
     const serializationResults = await Promise.allSettled(serializePromises);
     const batch = new Batch(false);
@@ -131,7 +132,8 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
     // eslint-disable-next-line unicorn/no-new-array
     const serializePromises = new Array<Promise<string | Buffer>>(validEntries.length);
     for (let i = 0; i < validEntries.length; i++) {
-      serializePromises[i] = this.serializeValue(validEntries[i]!.value);
+      const entry = validEntries[i]!;
+      serializePromises[i] = this.serializeValue(entry.value);
     }
     const serializationResults = await Promise.allSettled(serializePromises);
     const setEntries: Array<{ serializedKey: string; value: string | Buffer; ttl?: number }> = [];
