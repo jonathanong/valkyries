@@ -34,11 +34,11 @@ export async function multiCacheGetByAnyBatch<TConfigs extends ReadonlyArray<Bat
 
 async function clusterSafePath<TConfigs extends ReadonlyArray<BatchConfig>>(
   configs: TConfigs,
-): Promise<{ [I in keyof TConfigs]: Array<CacheValue> }> {
+): Promise<BatchResult<TConfigs>> {
   // ⚡ Bolt Optimization: Use pre-allocated arrays and indexed loops instead of
   // iterator-based map operations to reduce allocation and hot-path closure overhead.
   if (configs.length === 0) {
-    return [];
+    return [] as BatchResult<TConfigs>;
   }
   const configsLen = configs.length;
   // eslint-disable-next-line unicorn/no-new-array
