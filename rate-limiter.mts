@@ -56,9 +56,9 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    // Optimization: Pre-allocate args array using array length assignment which is faster in V8 than Array.from
-    const args: string[] = [];
-    args.length = keys.length + 1;
+    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length
+    // eslint-disable-next-line unicorn/no-new-array
+    const args: string[] = new Array<string>(keys.length + 1);
     args[0] = this.ttl.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
@@ -93,9 +93,9 @@ export class RateLimiter {
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
     const base = randomUUID();
-    // Optimization: Pre-allocate args array using array length assignment which is faster in V8 than Array.from
-    const args: string[] = [];
-    args.length = keys.length + 1;
+    // Optimization: Pre-allocate args array using new Array(size) which is faster in V8 than setting .length
+    // eslint-disable-next-line unicorn/no-new-array
+    const args: string[] = new Array<string>(keys.length + 1);
     args[0] = ttlSeconds.toString();
     for (let i = 0; i < keys.length; i++) {
       args[i + 1] = `${base}-${i}`;
@@ -198,10 +198,10 @@ export class RateLimiter {
     // What: Pre-allocate keys, args, and counts arrays and use indexed loops instead of .map() and iterators.
     // Why: Avoids iterator overhead, array resizing, and tuple destructuring allocations in this hot path.
     // Impact: Internal benchmarks show ~30-50% faster array building and results processing for large window batches.
-    const keys: string[] = [];
-    keys.length = len;
-    const args: string[] = [];
-    args.length = len * 4 + 1;
+    // eslint-disable-next-line unicorn/no-new-array
+    const keys: string[] = new Array<string>(len);
+    // eslint-disable-next-line unicorn/no-new-array
+    const args: string[] = new Array<string>(len * 4 + 1);
 
     // Unique-per-window UUID + index prevents predictability/collisions.
     const base = randomUUID();
@@ -227,20 +227,20 @@ export class RateLimiter {
         new Error(`addAndCheckWindows: unexpected Valkey response type ${typeof results}`),
       );
       /* v8 ignore next 2 -- malformed script return requires a mocked corrupted Valkey response. */
-      const counts: number[] = [];
-      counts.length = len;
+      // eslint-disable-next-line unicorn/no-new-array
+      const counts: number[] = new Array<number>(len);
       return { counts: counts.fill(0), limited: false };
     }
 
-    const counts: number[] = [];
-    counts.length = len;
+    // eslint-disable-next-line unicorn/no-new-array
+    const counts: number[] = new Array<number>(len);
     for (let i = 0; i < len; i++) {
       counts[i] = normalizeCountResult(results[i]);
     }
 
     const limited = normalizeCountResult(results[len]) === 1;
-    const wrote: boolean[] = [];
-    wrote.length = len;
+    // eslint-disable-next-line unicorn/no-new-array
+    const wrote: boolean[] = new Array<boolean>(len);
     const writeFlagOffset = len + 1;
     for (let i = 0; i < len; i++) {
       const writeFlag = results[writeFlagOffset + i];
