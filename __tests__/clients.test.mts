@@ -55,6 +55,30 @@ describe("clients exports and pubsub", () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
+    it("removePubSubMessageHandler explicitly removes a specific handler without affecting others", () => {
+      const handler1 = vi.fn();
+      const handler2 = vi.fn();
+      addPubSubMessageHandler(handler1);
+      addPubSubMessageHandler(handler2);
+
+      removePubSubMessageHandler(handler1);
+
+      const config = buildDynamicConfigSubscriptionClientConfig("redis://localhost:6379");
+      const callback = config.pubsubSubscriptions.callback;
+      const mockMsg = { channel: "dynamic-config:test", message: "hello" };
+      callback(mockMsg);
+
+      expect(handler1).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledWith(mockMsg);
+
+      removePubSubMessageHandler(handler2);
+    });
+
+    it("removePubSubMessageHandler safely handles removing a non-existent handler", () => {
+      const handler = vi.fn();
+      expect(() => removePubSubMessageHandler(handler)).not.toThrow();
+    });
+
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
       const error = new Error("Connection failed");
       vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
