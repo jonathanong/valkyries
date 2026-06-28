@@ -12,7 +12,8 @@ function registerReleaseHook() {
       try {
         script.release();
       } catch (err) {
-        process.stderr.write(`${String(err)}\n`);
+        // oxlint-disable-next-line no-console -- synchronous; onError queues async Sentry I/O which won't flush in an exit handler
+        console.error(err);
       }
     }
   });
