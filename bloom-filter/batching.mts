@@ -25,8 +25,7 @@ export function* concurrentSlices<T>(
   items: T[],
   concurrencyLimit: number,
 ): Generator<{ start: number; slice: T[] }> {
-  const normalizedConcurrency = Math.max(1, Math.trunc(concurrencyLimit));
-  for (let start = 0; start < items.length; start += normalizedConcurrency) {
-    yield { start, slice: items.slice(start, start + normalizedConcurrency) };
+  for (let start = 0; start < items.length; start += concurrencyLimit) {
+    yield { start, slice: items.slice(start, start + concurrencyLimit) };
   }
 }

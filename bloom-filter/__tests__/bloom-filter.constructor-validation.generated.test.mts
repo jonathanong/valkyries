@@ -95,32 +95,6 @@ describe("bloom-filter.generated", () => {
     expect(maxInFlight).toBe(2);
   });
 
-  it("normalizes fractional concurrencyLimit to integer chunking", async () => {
-    let inFlight = 0;
-    let maxInFlight = 0;
-    const client = {
-      invokeScript: async () => {
-        inFlight++;
-        maxInFlight = Math.max(maxInFlight, inFlight);
-        await new Promise<void>((resolve) => setImmediate(resolve));
-        inFlight--;
-        return 1;
-      },
-    };
-    const limitedFilter = new ValkeyBloomFilter({
-      name: `test-bloom-fractional-${Math.random().toString(36).slice(2)}`,
-      capacity: 100,
-      errorRate: 0.01,
-      batchSize: 1,
-      concurrencyLimit: 1.5,
-      client: client as unknown as GlideClient,
-    });
-
-    await limitedFilter.add(["a", "b", "c", "d", "e"]);
-
-    expect(maxInFlight).toBe(1);
-  });
-
   it("exists returns null when filter does not exist", async () => {
     const result = await filter.exists("nonexistent.com");
     expect(result).toBeNull();

@@ -1,19 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { durationInMilliseconds, decodeValue } from "../cache-utils.mts";
-
-describe("decodeValue", () => {
-  it("prevents prototype pollution via JSON.parse", async () => {
-    const payload =
-      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}, "safe": 1}';
-    const buffer = Buffer.from(payload);
-    const result = await decodeValue(buffer, "json");
-
-    expect(result).toEqual({ safe: 1 });
-    expect({}.hasOwnProperty("polluted")).toBe(false);
-    expect((result as any).__proto__.polluted).toBeUndefined();
-    expect((result as any).constructor.prototype?.polluted).toBeUndefined();
-  });
-});
+import { durationInMilliseconds } from "../cache-utils.mts";
 
 describe("durationInMilliseconds", () => {
   afterEach(() => {

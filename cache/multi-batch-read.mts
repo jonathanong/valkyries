@@ -108,6 +108,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
   }
 
   const decodedValues = await Promise.all(decodePromises);
+
   // Distribute values back to each cache
   // eslint-disable-next-line unicorn/no-new-array
   const results = new Array<Array<CacheValue>>(configsLen);

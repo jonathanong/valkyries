@@ -204,9 +204,9 @@ export class DynamicConfig {
 
   getFields(): Record<string, DynamicConfigField> {
     const result: Record<string, DynamicConfigField> = {};
-    this.fields.forEach((value, name) => {
+    for (const [name, value] of this.fields.entries()) {
       result[name] = value;
-    });
+    }
     return result;
   }
 

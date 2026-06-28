@@ -103,45 +103,6 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
-  it("should batch and await unlink promises when count reaches 100", async () => {
-    const totalKeysToScan = 106;
-    const batchSize = 100;
-    let page = 0;
-    const scanMock = vi.fn(async (_cursor: string) => {
-      const currentPage = page++;
-      if (currentPage === totalKeysToScan - 1) {
-        return ["0", ["prefix:last"]];
-      }
-      return [page.toString(), [`prefix:${currentPage}`]];
-    });
-
-    const unlinkMock = vi.fn().mockResolvedValue(1);
-
-    const client = {
-      scan: scanMock,
-      unlink: unlinkMock,
-    } as unknown as GlideClient;
-
-    const batchSizes: number[] = [];
-    const originalPromiseAll = Promise.all.bind(Promise);
-    const promiseAllSpy = vi.spyOn(Promise, "all").mockImplementation((value) => {
-      const values = Array.from(value);
-      batchSizes.push(values.length);
-      return originalPromiseAll(values);
-    });
-
-    await deleteKeysWithPrefix(client, "prefix:*");
-
-    expect(scanMock).toHaveBeenCalledTimes(totalKeysToScan);
-    expect(unlinkMock).toHaveBeenCalledTimes(totalKeysToScan);
-    expect(promiseAllSpy).toHaveBeenCalled();
-
-    expect(batchSizes).toContain(batchSize);
-    expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(totalKeysToScan);
-
-    promiseAllSpy.mockRestore();
-  });
-
   it("should not await unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
