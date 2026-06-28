@@ -1,4 +1,0 @@
-💡 What: Refactored `normalizeBatchedResults` in `bloom-filter/lookups.mts` to pre-allocate the resulting array and use indexed `for` loops instead of dynamically spreading mapped `.push(...batchItems.map(...))`.
-🎯 Why: In the hot path of bloom filter batch lookups (`mexists` and `mexistsIfReady`), spreading mapped array results into a dynamically resizing accumulator array creates iterator closure overhead and memory allocation pressure.
-📊 Impact: Micro-benchmarks demonstrate nearly a 2x speedup in allocating the final output array (~101M ns vs ~58M ns) while drastically reducing garbage collection pressure.
-🔬 Measurement: Run the internal micro-benchmarks with 10k iterations, and verify full integration by running `pnpm test`.
