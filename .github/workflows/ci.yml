@@ -25,8 +25,8 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     steps:
-      - uses: actions/checkout@v7.0.0
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: actions/checkout@v6.0.2
+      - uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.1.2
       - uses: actions/setup-node@v6.4.0
@@ -59,8 +59,8 @@ jobs:
     runs-on: ubuntu-slim
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7.0.0
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: actions/checkout@v6.0.2
+      - uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.1.2
       - uses: actions/setup-node@v6.4.0
