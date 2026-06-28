@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { GlideClient } from "@valkey/valkey-glide";
-import * as errors from "../errors.mts";
+import { setValkeyErrorHandler } from "../errors.mts";
 import {
   cacheValkeyClient,
   rateLimiterValkeyClient,
@@ -30,6 +30,7 @@ describe("clients exports and pubsub", () => {
   describe("pubsub message handlers", () => {
     afterEach(async () => {
       await closeDynamicConfigValkeySubscriptionClient();
+      setValkeyErrorHandler(() => {});
       vi.restoreAllMocks();
     });
 
@@ -57,16 +58,17 @@ describe("clients exports and pubsub", () => {
     });
 
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
+      const handleError = vi.fn();
+      setValkeyErrorHandler(handleError);
       const error = new Error("Connection failed");
       const createClientSpy = vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
-      const handleErrorSpy = vi.spyOn(errors, "handleValkeyError");
 
       await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
         "Connection failed",
       );
 
-      expect(handleErrorSpy).toHaveBeenCalledTimes(1);
-      expect(handleErrorSpy).toHaveBeenCalledWith(error);
+      expect(handleError).toHaveBeenCalledTimes(1);
+      expect(handleError).toHaveBeenCalledWith(error);
 
       const successClient = {
         punsubscribe: vi.fn(),
