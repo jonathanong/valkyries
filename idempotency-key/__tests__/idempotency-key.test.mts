@@ -37,6 +37,25 @@ describe("idempotency-key", () => {
       decoder: Decoder.String,
     });
   });
+  it("getAndDelete stringifies various valkey result types", async () => {
+    const customCommand = vi.fn<GlideClient["customCommand"]>();
+    const client = { customCommand } as unknown as GlideClient;
+
+    customCommand.mockResolvedValueOnce(123);
+    await expect(getAndDelete("key", { client })).resolves.toBe("123");
+
+    customCommand.mockResolvedValueOnce(123n);
+    await expect(getAndDelete("key", { client })).resolves.toBe("123");
+
+    customCommand.mockResolvedValueOnce(true);
+    await expect(getAndDelete("key", { client })).resolves.toBe("true");
+
+    customCommand.mockResolvedValueOnce({ complex: "object" });
+    await expect(getAndDelete("key", { client })).resolves.toBe('{"complex":"object"}');
+
+    customCommand.mockResolvedValueOnce((() => {}) as any);
+    await expect(getAndDelete("key", { client })).resolves.toBe("[unserializable]");
+  });
 
   it("reserves once and allows reuse after release", async () => {
     const key = `idempotency:{${rand()}}`;
