@@ -76,7 +76,8 @@ export async function retryValkeyOperation<T>(
       if (!shouldRetry(error)) throw error;
       lastError = error;
       if (attempt < maxAttempts - 1) {
-        const waitMs = jitter ? delayMs + randomInt(Math.floor(delayMs * 4) + 1) : delayMs;
+        const maxJitter = Math.floor(delayMs * 4);
+        const waitMs = jitter && maxJitter > 0 ? delayMs + randomInt(maxJitter + 1) : delayMs;
         await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
       }
     }

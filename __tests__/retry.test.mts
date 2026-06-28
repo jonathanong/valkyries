@@ -172,6 +172,22 @@ describe("retryValkeyOperation", () => {
     vi.restoreAllMocks();
   });
 
+  it("jitter: falls back to the base delay when delayMs is negative", async () => {
+    let attempts = 0;
+    const fn = () => {
+      attempts++;
+      if (attempts < 2) return Promise.reject(new Error("Reached maximum inflight requests"));
+      return Promise.resolve("done");
+    };
+
+    const promise = retryValkeyOperation(fn, { delayMs: -1, jitter: true });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result).toBe("done");
+    expect(attempts).toBe(2);
+  });
+
   it("jitter: false uses fixed delayMs (no randomization)", async () => {
     const timeouts: number[] = [];
     const origSetTimeout = globalThis.setTimeout;
