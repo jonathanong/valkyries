@@ -60,6 +60,28 @@ describe("clients.generated", () => {
     });
   });
 
+  it("rethrows non-URIError decode errors in credentials", () => {
+    const originalDecodeURIComponent = globalThis.decodeURIComponent;
+    const decodeFailure = new TypeError("non-uri decode failure");
+
+    globalThis.decodeURIComponent = (() => {
+      throw decodeFailure;
+    }) as typeof decodeURIComponent;
+
+    try {
+      expect(() => glideConfigFromUrl("redis://user:pass@localhost:6379")).toThrow(
+        "Invalid Valkey URL",
+      );
+      try {
+        glideConfigFromUrl("redis://user:pass@localhost:6379");
+      } catch (error: unknown) {
+        expect(error).toHaveProperty("cause", decodeFailure);
+      }
+    } finally {
+      globalThis.decodeURIComponent = originalDecodeURIComponent;
+    }
+  });
+
   it("glideConfigFromUrl treats username-only URL as unauthenticated", () => {
     // URLs with username but no password cannot form valid Valkey credentials (library requires password)
     // so credentials are omitted entirely, treating the connection as unauthenticated.
