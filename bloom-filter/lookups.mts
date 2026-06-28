@@ -129,10 +129,16 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
       for (let j = 0; j < batchLen; j++) {
         boolResults[offset++] = null;
       }
-    } else {
-      for (let j = 0; j < batchLen; j++) {
-        boolResults[offset++] = normalizeBloomCheckResult(results[j]);
-      }
+      continue;
+    }
+
+    const resultLen = results.length;
+    const alignedLen = Math.min(batchLen, resultLen);
+    for (let j = 0; j < alignedLen; j++) {
+      boolResults[offset++] = normalizeBloomCheckResult(results[j]);
+    }
+    for (let j = alignedLen; j < batchLen; j++) {
+      boolResults[offset++] = null;
     }
   }
   return boolResults;
