@@ -17,11 +17,26 @@ describe("config", () => {
     delete process.env.VALKEY_CACHE_URL;
     delete process.env.VALKEY_RATE_LIMITER_URL;
     delete process.env.VALKEY_DYNAMIC_CONFIG_URL;
+    delete process.env.DOCKER_HOST_IP;
 
     const { config } = await import("../config.mts");
     expect(config.cache_url).toBe("valkey://localhost:6379");
     expect(config.rate_limiter_url).toBe("valkey://localhost:6379");
     expect(config.dynamic_config_url).toBe("valkey://localhost:6379");
+  });
+
+  it("should default to DOCKER_HOST_IP when no env URLs are set", async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv("DOCKER_HOST_IP", "10.1.2.3");
+    delete process.env.VALKEY_URL;
+    delete process.env.VALKEY_CACHE_URL;
+    delete process.env.VALKEY_RATE_LIMITER_URL;
+    delete process.env.VALKEY_DYNAMIC_CONFIG_URL;
+
+    const { config } = await import("../config.mts");
+    expect(config.cache_url).toBe("valkey://10.1.2.3:6379");
+    expect(config.rate_limiter_url).toBe("valkey://10.1.2.3:6379");
+    expect(config.dynamic_config_url).toBe("valkey://10.1.2.3:6379");
   });
 
   it("should use VALKEY_URL when provided, overriding default", async () => {
@@ -47,6 +62,27 @@ describe("config", () => {
     expect(config.cache_url).toBe("valkey://cache:6379");
     expect(config.rate_limiter_url).toBe("valkey://rate:6379");
     expect(config.dynamic_config_url).toBe("valkey://config:6379");
+  });
+
+  it("should treat blank env URLs as unset and continue fallback chain", async () => {
+    vi.stubEnv("VALKEY_CACHE_URL", "");
+    vi.stubEnv("VALKEY_RATE_LIMITER_URL", "");
+    vi.stubEnv("VALKEY_DYNAMIC_CONFIG_URL", "");
+    vi.stubEnv("VALKEY_URL", "valkey://valkey-server:6379");
+    vi.stubEnv("DOCKER_HOST_IP", "");
+
+    const { config } = await import("../config.mts");
+    expect(config.cache_url).toBe("valkey://valkey-server:6379");
+    expect(config.rate_limiter_url).toBe("valkey://valkey-server:6379");
+    expect(config.dynamic_config_url).toBe("valkey://valkey-server:6379");
+  });
+
+  it("should fallback rate_limiter_url to VALKEY_CACHE_URL when VALKEY_RATE_LIMITER_URL is unset", async () => {
+    vi.stubEnv("VALKEY_CACHE_URL", "valkey://cache:6379");
+    vi.stubEnv("VALKEY_URL", "valkey://valkey-server:6379");
+
+    const { config } = await import("../config.mts");
+    expect(config.rate_limiter_url).toBe("valkey://cache:6379");
   });
 
   it("should parse inflight_requests_limit correctly", async () => {
