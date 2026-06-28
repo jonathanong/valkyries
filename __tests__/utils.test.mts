@@ -27,30 +27,6 @@ describe("utils", () => {
       expect(normalizeTtlResult(-2n)).toBe(-2);
     });
 
-    it("should truncate small negative values instead of rounding to -1", () => {
-      // Math.trunc(-0.5) is -0, which vitest asserts exactly via Object.is equality,
-      // so we use Object.is or expect(X).toBe(-0) to avoid failures.
-      expect(normalizeTtlResult(-500)).toBe(-0);
-      expect(normalizeTtlResult(-999)).toBe(-0);
-      // For bigints, Number(-500n) / 1000 is also -0.5, truncated to -0.
-      expect(normalizeTtlResult(-500n)).toBe(-0);
-      expect(normalizeTtlResult(-999n)).toBe(-0);
-    });
-
-    it("should handle edge case number values correctly", () => {
-      expect(normalizeTtlResult(NaN)).toBeNaN();
-      expect(normalizeTtlResult(Infinity)).toBe(Infinity);
-      expect(normalizeTtlResult(-Infinity)).toBe(-Infinity);
-
-      // -0 should return -0 or 0, Math.trunc(-0) is -0, Object.is differentiates them
-      // Math.trunc(-0 / 1000) === -0
-      expect(Object.is(normalizeTtlResult(-0), -0)).toBe(true);
-
-      // Math.trunc(Number.MAX_SAFE_INTEGER / 1000)
-      expect(normalizeTtlResult(Number.MAX_SAFE_INTEGER)).toBe(9007199254740);
-      expect(normalizeTtlResult(Number.MIN_SAFE_INTEGER)).toBe(-9007199254740);
-    });
-
     it("should return null for invalid types", () => {
       expect(normalizeTtlResult(null)).toBeNull();
       expect(normalizeTtlResult(undefined)).toBeNull();

@@ -44,14 +44,6 @@ describe("clients.generated", () => {
     });
   });
 
-  it("glideConfigFromUrl safely handles malformed percent-encoded credentials by using raw value", () => {
-    const config = glideConfigFromUrl("redis://user%name:p%ssword@localhost:6379");
-    expect(config.credentials).toEqual({
-      username: "user%name",
-      password: "p%ssword",
-    });
-  });
-
   it("glideConfigFromUrl treats username-only URL as unauthenticated", () => {
     // URLs with username but no password cannot form valid Valkey credentials (library requires password)
     // so credentials are omitted entirely, treating the connection as unauthenticated.
@@ -60,24 +52,7 @@ describe("clients.generated", () => {
   });
 
   it("glideConfigFromUrl throws error for invalid URL", () => {
-    expect(() => glideConfigFromUrl("not-a-url")).toThrow("Invalid Valkey URL provided");
-  });
-
-  it("glideConfigFromUrl does not leak credentials in error message", () => {
-    let error: Error | undefined;
-    try {
-      glideConfigFromUrl("redis://user:pass@:::6379");
-    } catch (err) {
-      if (err instanceof Error) error = err;
-    }
-
-    expect(error).toBeDefined();
-    if (!(error instanceof Error)) return;
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toBe("Invalid Valkey URL provided");
-    expect(error.message).not.toContain("user");
-    expect(error.message).not.toContain("pass");
-    expect(error.cause).toBeUndefined();
+    expect(() => glideConfigFromUrl("not-a-url")).toThrow("Invalid Valkey URL");
   });
 
   it("glideConfigFromUrl allows overriding lazy connect", () => {

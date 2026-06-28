@@ -101,18 +101,6 @@ export async function upsertValkeyClientByUrl(
   return await clientPromise;
 }
 
-function safeDecodeURIComponent(component: string): string {
-  try {
-    return decodeURIComponent(component);
-  } catch (err) {
-    /* v8 ignore next 3 */
-    if (!(err instanceof URIError)) {
-      throw err;
-    }
-    return component;
-  }
-}
-
 export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
   try {
     const parsed = new URL(url);
@@ -127,8 +115,8 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       useTLS: parsed.protocol === "rediss:",
       credentials: parsed.password
         ? {
-            ...(parsed.username ? { username: safeDecodeURIComponent(parsed.username) } : {}),
-            password: safeDecodeURIComponent(parsed.password),
+            ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
+            password: decodeURIComponent(parsed.password),
           }
         : undefined,
       readFrom: options?.readFrom,
@@ -136,8 +124,8 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
       inflightRequestsLimit: options?.inflightRequestsLimit ?? config.inflight_requests_limit,
       requestTimeout: options?.requestTimeout ?? config.request_timeout_ms,
     };
-  } catch {
-    throw new Error("Invalid Valkey URL provided");
+  } catch (cause) {
+    throw new Error(`Invalid Valkey URL: ${url}`, { cause });
   }
 }
 

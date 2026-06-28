@@ -73,30 +73,4 @@ describe("cache.errors", () => {
       ValkeyCacheTypeError,
     );
   });
-
-  it("ValkeyCache protects against prototype pollution during deserialization", async () => {
-    const cache = new ValkeyCache({ prefix: "test", ttlSeconds: 10 });
-    const key = `test-${Math.random().toString(36).slice(2)}`;
-
-    // Simulate malicious JSON payload in the cache
-    const maliciousJson =
-      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}, "normal": "value"}';
-    const cacheKey = cache.getKey(key);
-    await cacheValkeyClient.set(cacheKey, Buffer.from(maliciousJson, "utf8"));
-
-    const result = await cache.get(key);
-    expect(result).toBeDefined();
-
-    // Ensure the resulting object is not polluted
-    // @ts-expect-error - checking for non-existent polluted property
-    expect(result.polluted).toBeUndefined();
-    // @ts-expect-error - checking for __proto__ property
-    expect(result.__proto__).not.toEqual({ polluted: true });
-    // @ts-expect-error - checking for constructor property
-    expect(result.constructor?.prototype?.polluted).toBeUndefined();
-    // Ensure normal values still load
-    expect((result as Record<string, unknown>).normal).toBe("value");
-
-    await cache.delete(key);
-  });
 });

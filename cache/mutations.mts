@@ -56,18 +56,9 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   async setBatch(entries: Array<{ key: K; value: unknown; ttl?: number }>): Promise<void> {
     const validEntries = this.withSerializedKeys(entries);
     if (validEntries.length === 0) return;
-
-    // ⚡ Bolt Optimization:
-    // What: Pre-allocate promises array and use a for loop instead of map.
-    // Why: Avoids iterator closure overhead and dynamic array resizing in hot write path.
-    // Impact: Faster throughput and reduced garbage collection pressure.
-    // eslint-disable-next-line unicorn/no-new-array
-    const serializePromises = new Array<Promise<string | Buffer>>(validEntries.length);
-    for (let i = 0; i < validEntries.length; i++) {
-      const entry = validEntries[i]!;
-      serializePromises[i] = this.serializeValue(entry.value);
-    }
-    const serializationResults = await Promise.allSettled(serializePromises);
+    const serializationResults = await Promise.allSettled(
+      validEntries.map((entry) => this.serializeValue(entry.value)),
+    );
     const batch = new Batch(false);
     const writtenKeys: string[] = [];
     for (let i = 0; i < validEntries.length; i++) {
@@ -124,18 +115,9 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
   ): Promise<void> {
     const validEntries = this.withSerializedKeys(entries);
     if (validEntries.length === 0) return;
-
-    // ⚡ Bolt Optimization:
-    // What: Pre-allocate promises array and use a for loop instead of map.
-    // Why: Avoids iterator closure overhead and dynamic array resizing in hot write path.
-    // Impact: Faster throughput and reduced garbage collection pressure.
-    // eslint-disable-next-line unicorn/no-new-array
-    const serializePromises = new Array<Promise<string | Buffer>>(validEntries.length);
-    for (let i = 0; i < validEntries.length; i++) {
-      const entry = validEntries[i]!;
-      serializePromises[i] = this.serializeValue(entry.value);
-    }
-    const serializationResults = await Promise.allSettled(serializePromises);
+    const serializationResults = await Promise.allSettled(
+      validEntries.map((entry) => this.serializeValue(entry.value)),
+    );
     const setEntries: Array<{ serializedKey: string; value: string | Buffer; ttl?: number }> = [];
     for (let i = 0; i < validEntries.length; i++) {
       const result = serializationResults[i]!;
