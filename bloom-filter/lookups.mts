@@ -33,23 +33,28 @@ export async function mexists(
   state: BloomFilterState,
   items: string[],
 ): Promise<(boolean | null)[]> {
+  const len = items.length;
   if (items.length === 0) return [];
   const batches = buildBatches(items, luaBatchSize(state.batchSize));
   try {
-    const batchResults = await Promise.all(
-      batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsScript, {
-          keys: [state.liveKey],
-          args: batchItems,
-        }),
-      ),
-    );
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map() for script invocations.
+    // Why: Avoids callback and iterator overhead for hot-path batching.
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<unknown>>(batches.length);
+    for (let i = 0; i < batches.length; i++) {
+      promises[i] = state.client.invokeScript(bloomFilterMexistsScript, {
+        keys: [state.liveKey],
+        args: batches[i]!,
+      });
+    }
+    const batchResults = await Promise.all(promises);
     const boolResults = normalizeBatchedResults(batches, batchResults);
     emitValkeyEvent("bloom-filter:mexists", { name: state.name, items, results: boolResults });
     return boolResults;
   } catch (error) {
     handleValkeyError(error);
-    return items.map(() => null);
+    return buildNullResults(len);
   }
 }
 
@@ -77,17 +82,22 @@ export async function mexistsIfReady(
   readyKey: string,
   items: string[],
 ): Promise<(boolean | null)[]> {
+  const len = items.length;
   if (items.length === 0) return [];
   const batches = buildBatches(items, luaBatchSize(state.batchSize));
   try {
-    const batchResults = await Promise.all(
-      batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsIfReadyScript, {
-          keys: [readyKey, state.liveKey],
-          args: batchItems,
-        }),
-      ),
-    );
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map() for script invocations.
+    // Why: Avoids callback and iterator overhead for hot-path batching.
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<unknown>>(batches.length);
+    for (let i = 0; i < batches.length; i++) {
+      promises[i] = state.client.invokeScript(bloomFilterMexistsIfReadyScript, {
+        keys: [readyKey, state.liveKey],
+        args: batches[i]!,
+      });
+    }
+    const batchResults = await Promise.all(promises);
     const normalizedResults = normalizeBatchedResults(batches, batchResults);
     emitValkeyEvent("bloom-filter:mexists", {
       name: state.name,
@@ -97,7 +107,7 @@ export async function mexistsIfReady(
     return normalizedResults;
   } catch (error) {
     handleValkeyError(error);
-    return items.map(() => null);
+    return buildNullResults(len);
   }
 }
 
@@ -142,4 +152,9 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
     }
   }
   return boolResults;
+}
+
+function buildNullResults(length: number): null[] {
+  // eslint-disable-next-line unicorn/no-new-array
+  return new Array<null>(length).fill(null);
 }
