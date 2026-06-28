@@ -32,14 +32,44 @@ export async function multiCacheGetByAnyBatch<
 async function clusterSafePath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
-  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
+  // ⚡ Bolt Optimization:
+  // What: Pre-allocate array and use for loop instead of configs.map().
+  // Why: Avoids iterator closure overhead and dynamic array resizing in hot paths.
+  // Impact: Reduces GC pressure and improves throughput.
+  // ⚡ Bolt Optimization:
+  // What: Skip unnecessary work for empty input.
+  // Why: Return early avoids allocation plus Promise overhead.
+  // Impact: Faster no-op path for empty calls.
+  if (configs.length === 0) {
+    return [];
+  }
+  // eslint-disable-next-line unicorn/no-new-array
+  const promises = new Array<Promise<Array<CacheValue>>>(configs.length);
+  for (let i = 0; i < configs.length; i++) {
+    const cfg = configs[i];
+    promises[i] = cfg.cache.getBatch(cfg.keys);
+  }
+  return Promise.all(promises);
 }
 
 async function singleRoundTripPath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
   // Collect per-config metadata: physicalKeys, outputIndices, serializedKeys
-  const perConfig = configs.map((cfg) => cfg.cache.getPhysicalCacheKeys(cfg.keys));
+  // ⚡ Bolt Optimization:
+  // What: Pre-allocate arrays and use for loops instead of .map().
+  // Why: Avoids iterator closure overhead and dynamic array resizing.
+  // Impact: Reduces GC pressure and improves throughput.
+  // eslint-disable-next-line unicorn/no-new-array
+  const perConfig = new Array<{
+    physicalKeys: string[];
+    outputIndices: number[];
+    serializedKeys: string[];
+  }>(configs.length);
+  for (let i = 0; i < configs.length; i++) {
+    const cfg = configs[i];
+    perConfig[i] = cfg.cache.getPhysicalCacheKeys(cfg.keys);
+  }
 
   // Build a flat list of all physical keys across all caches
   const allPhysicalKeys: string[] = [];
@@ -50,7 +80,13 @@ async function singleRoundTripPath(
   }
 
   if (allPhysicalKeys.length === 0) {
-    return configs.map((cfg) => Array<CacheValue>(cfg.keys.length).fill(null));
+    // eslint-disable-next-line unicorn/no-new-array
+    const emptyResults = new Array<Array<CacheValue>>(configs.length);
+    for (let i = 0; i < configs.length; i++) {
+      // eslint-disable-next-line unicorn/no-new-array
+      emptyResults[i] = new Array<CacheValue>(configs[i].keys.length).fill(null);
+    }
+    return emptyResults;
   }
 
   // Use the first cache's client — all caches must share the same standalone client
