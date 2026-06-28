@@ -110,6 +110,6 @@ async function cleanupBuildingKey(state: BloomFilterState): Promise<void> {
   try {
     await state.client.unlink([state.buildingKey]);
   } catch (cleanupError) {
-    handleValkeyError(cleanupError as Error);
+    handleValkeyError(cleanupError);
   }
 }
