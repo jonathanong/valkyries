@@ -49,19 +49,7 @@ export class RateLimiter {
   }
 
   async add(ids: string[]) {
-    // ⚡ Bolt Optimization:
-    // What: Build filteredIds and keys using a single indexed loop instead of .filter().map().
-    // Why: Avoids iterator closure allocations and intermediate array creation.
-    // Impact: Reduces GC pressure and improves throughput in hot paths.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const { filteredIds, keys } = this.filterIdsAndGetKeys(ids);
     if (filteredIds.length === 0) return;
     // Single script call for all keys (server time is used in script)
     // Use CSPRNG to prevent predictability and collisions.
@@ -98,19 +86,7 @@ export class RateLimiter {
     threshold: number,
     ttlSeconds = this.ttl,
   ): Promise<{ counts: number[]; limited: boolean }> {
-    // ⚡ Bolt Optimization:
-    // What: Build filteredIds and keys using a single indexed loop instead of .filter().map().
-    // Why: Avoids iterator closure allocations and intermediate array creation.
-    // Impact: Reduces GC pressure and improves throughput in hot paths.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const { filteredIds, keys } = this.filterIdsAndGetKeys(ids);
     if (filteredIds.length === 0) return { counts: [], limited: false };
     // Use CSPRNG to prevent predictability and collisions.
     // Optimization: Generate one UUID and append index to avoid calling CSPRNG N times.
@@ -161,19 +137,7 @@ export class RateLimiter {
    * Falsy ids are silently filtered; returned counts align to filtered ids, not the input array.
    */
   async get(ids: string[], ttlSeconds = this.ttl): Promise<number[]> {
-    // ⚡ Bolt Optimization:
-    // What: Build filteredIds and keys using a single indexed loop instead of .filter().map().
-    // Why: Avoids iterator closure allocations and intermediate array creation.
-    // Impact: Reduces GC pressure and improves throughput in hot paths.
-    const filteredIds: string[] = [];
-    const keys: string[] = [];
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      if (id) {
-        filteredIds.push(id);
-        keys.push(this.getKey(id));
-      }
-    }
+    const { filteredIds, keys } = this.filterIdsAndGetKeys(ids);
     if (filteredIds.length === 0) return [];
     // Single read-only script call for all keys (server time is used in script)
     // Rate limiter checks need primary reads to avoid replica lag causing stale counts.
@@ -190,10 +154,14 @@ export class RateLimiter {
 
   async delete(...ids: string[]) {
     if (ids.length === 0) return 0;
-    // ⚡ Bolt Optimization:
-    // What: Build filteredIds and keys using a single indexed loop instead of .filter().map().
-    // Why: Avoids iterator closure allocations and intermediate array creation.
-    // Impact: Reduces GC pressure and improves throughput in hot paths.
+    const { filteredIds, keys } = this.filterIdsAndGetKeys(ids);
+    if (filteredIds.length === 0) return 0;
+    const count = await this.client.unlink(keys);
+    emitValkeyEvent("rate-limiter:delete", { prefix: this.prefix, ids: filteredIds });
+    return count;
+  }
+
+  private filterIdsAndGetKeys(ids: string[]): { filteredIds: string[]; keys: string[] } {
     const filteredIds: string[] = [];
     const keys: string[] = [];
     for (let i = 0; i < ids.length; i++) {
@@ -203,10 +171,7 @@ export class RateLimiter {
         keys.push(this.getKey(id));
       }
     }
-    if (filteredIds.length === 0) return 0;
-    const count = await this.client.unlink(keys);
-    emitValkeyEvent("rate-limiter:delete", { prefix: this.prefix, ids: filteredIds });
-    return count;
+    return { filteredIds, keys };
   }
 
   getKey(key: string) {
