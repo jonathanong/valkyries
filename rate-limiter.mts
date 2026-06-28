@@ -291,7 +291,12 @@ function emitWindowEvents(
     const id = window.id || String(window.hashTag);
     /* v8 ignore next -- when counts is derived from scripts it is always fully populated, so the ?? 0 fallback is a defensive typeguard that won't execute */
     const count = counts[i] ?? 0;
-    if (wrote[i]) emitValkeyEvent("rate-limiter:add", { prefix: window.prefix, ids: [id] });
+    if (wrote[i]) {
+      emitValkeyEvent("rate-limiter:add", {
+        prefix: window.prefix,
+        ids: [id],
+      });
+    }
     emitValkeyEvent("rate-limiter:get", {
       prefix: window.prefix,
       ids: [id],
