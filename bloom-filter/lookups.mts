@@ -122,35 +122,14 @@ function buildBatches(items: string[], batchSize: number): string[][] {
 }
 
 function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): (boolean | null)[] {
-  // ⚡ Bolt Optimization:
-  // What: Pre-allocate array and use explicit for loops instead of map and spread (.push(...array.map(...))).
-  // Why: Avoids iterator overhead from spread syntax and dynamic array resizing from push.
-  // Impact: Nearly 2x speedup in allocating the resulting array.
-  let totalLen = 0;
-  for (let i = 0; i < batches.length; i++) {
-    totalLen += batches[i]!.length;
-  }
-  // eslint-disable-next-line unicorn/no-new-array
-  const boolResults = new Array<boolean | null>(totalLen);
-  let offset = 0;
+  const boolResults: (boolean | null)[] = [];
   for (let i = 0; i < batches.length; i++) {
     const batchItems = batches[i]!;
     const results = batchResults[i];
-    const batchLen = batchItems.length;
     if (!Array.isArray(results)) {
-      for (let j = 0; j < batchLen; j++) {
-        boolResults[offset++] = null;
-      }
-      continue;
-    }
-
-    const resultLen = results.length;
-    const alignedLen = Math.min(batchLen, resultLen);
-    for (let j = 0; j < alignedLen; j++) {
-      boolResults[offset++] = normalizeBloomCheckResult(results[j]);
-    }
-    for (let j = alignedLen; j < batchLen; j++) {
-      boolResults[offset++] = null;
+      boolResults.push(...batchItems.map((): null => null));
+    } else {
+      boolResults.push(...results.map(normalizeBloomCheckResult));
     }
   }
   return boolResults;
