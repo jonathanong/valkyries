@@ -225,6 +225,6 @@ export abstract class ValkeyCacheMutations<K = string> extends ValkeyCacheBatchR
 
   private handleSerializationFailure(cause: unknown) {
     if (cause instanceof ValkeyCacheTypeError) throw cause;
-    handleValkeyError(cause instanceof Error ? cause : new Error(String(cause)));
+    handleValkeyError(cause);
   }
 }
