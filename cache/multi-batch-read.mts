@@ -32,7 +32,7 @@ export async function multiCacheGetByAnyBatch<
 async function clusterSafePath<TConfigs extends Array<{ cache: ValkeyCache<any>; keys: any[] }>>(
   configs: TConfigs,
 ): Promise<{ [I in keyof TConfigs]: Array<CacheValue> }> {
-  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys))) as unknown as Promise<{
+  return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys))) as Promise<{
     [I in keyof TConfigs]: Array<CacheValue>;
   }>;
 }
@@ -69,13 +69,13 @@ async function singleRoundTripPath<
   }
 
   const allPhysicalKeysLen = allPhysicalKeys.length;
-  if (allPhysicalKeysLen === 0) {
+    if (allPhysicalKeysLen === 0) {
     // eslint-disable-next-line unicorn/no-new-array
     const emptyResults = new Array<Array<CacheValue>>(configsLen);
     for (let i = 0; i < configsLen; i++) {
       emptyResults[i] = Array<CacheValue>(configs[i].keys.length).fill(null);
     }
-    return emptyResults as unknown as { [I in keyof TConfigs]: Array<CacheValue> };
+    return emptyResults as { [I in keyof TConfigs]: Array<CacheValue> };
   }
 
   // Use the first cache's client — all caches must share the same standalone client
@@ -121,5 +121,5 @@ async function singleRoundTripPath<
     results[i] = scattered;
   }
 
-  return results as unknown as { [I in keyof TConfigs]: Array<CacheValue> };
+  return results as { [I in keyof TConfigs]: Array<CacheValue> };
 }
