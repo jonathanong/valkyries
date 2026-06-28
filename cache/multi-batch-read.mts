@@ -16,7 +16,7 @@ type CacheValue = string | Buffer | Record<string, unknown> | null;
  * corresponding config entry.
  */
 export async function multiCacheGetByAnyBatch<
-  TConfigs extends Array<{ cache: ValkeyCache<any>; keys: any[] }>,
+  TConfigs extends ReadonlyArray<{ cache: ValkeyCache<any>; keys: any[] }>,
 >(
   configs: TConfigs,
   options?: { clusterSafe?: boolean },
@@ -30,13 +30,13 @@ export async function multiCacheGetByAnyBatch<
 }
 
 async function clusterSafePath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
+  configs: ReadonlyArray<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
   return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
 }
 
 async function singleRoundTripPath(
-  configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
+  configs: ReadonlyArray<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
   // Collect per-config metadata: physicalKeys, outputIndices, serializedKeys
   const perConfig = configs.map((cfg) => cfg.cache.getPhysicalCacheKeys(cfg.keys));
@@ -67,12 +67,12 @@ async function singleRoundTripPath(
     const offset = offsets[i];
 
     // Decode deduped results
-    // eslint-disable-next-line unicorn/no-new-array
-    const dedupedValues = new Array<CacheValue>(physicalKeys.length);
+    const dedupedValuePromises: Array<Promise<CacheValue>> = [];
     for (let j = 0; j < physicalKeys.length; j++) {
       const raw = rawValues[offset + j] ?? null;
-      dedupedValues[j] = await configs[i].cache.decodeRawValue(serializedKeys[j], raw);
+      dedupedValuePromises.push(configs[i].cache.decodeRawValue(serializedKeys[j], raw));
     }
+    const dedupedValues = await Promise.all(dedupedValuePromises);
 
     // Scatter back to original positions using outputIndices
     const scattered: Array<CacheValue> = [];
