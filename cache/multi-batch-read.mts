@@ -72,9 +72,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
   for (let i = 0; i < configsLen; i++) {
     const { physicalKeys } = perConfig[i];
     offsets[i] = allPhysicalKeys.length;
-    for (let j = 0; j < physicalKeys.length; j++) {
-      allPhysicalKeys.push(physicalKeys[j]);
-    }
+    for (const k of physicalKeys) allPhysicalKeys.push(k);
   }
 
   const allPhysicalKeysLen = allPhysicalKeys.length;
@@ -87,9 +85,6 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
     return emptyResults as BatchResult<TConfigs>;
   }
 
-  // Use the first cache's client — all caches must share the same standalone client
-  // for this path to be safe. In cluster mode keys land on different slots, so MGET
-  // will fail unless all keys hash to the same slot, which they do not here.
   const client = configs[0].cache.getClient();
   const rawValues = await client.mget(allPhysicalKeys, { decoder: Decoder.Bytes });
 
@@ -124,7 +119,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
       const idx = outputIndices[j];
       scattered[j] = idx === -1 ? null : dedupedValues[idx];
     }
-    results[i] = scattered;
+    results.push(scattered);
   }
 
   return results as BatchResult<TConfigs>;
