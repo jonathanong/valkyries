@@ -82,10 +82,34 @@ export async function decodeValue(
     return text;
   }
 
-  return JSON.parse(text, (key, value) => {
-    if (key === "__proto__" || key === "constructor") {
-      return undefined;
+  const json = JSON.parse(text);
+
+  const sanitizeJson = (value: unknown, parentKey?: string): unknown => {
+    if (value === null || typeof value !== "object") {
+      return value;
     }
-    return value;
-  });
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => sanitizeJson(entry));
+    }
+
+    const input = value as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+
+    for (const key of Object.keys(input)) {
+      if (key === "__proto__") {
+        continue;
+      }
+
+      if (parentKey === "constructor" && key === "prototype") {
+        continue;
+      }
+
+      output[key] = sanitizeJson(input[key], key);
+    }
+
+    return output;
+  };
+
+  return sanitizeJson(json);
 }

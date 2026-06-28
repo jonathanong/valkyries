@@ -4,14 +4,24 @@ import { durationInMilliseconds, decodeValue } from "../cache-utils.mts";
 describe("decodeValue", () => {
   it("prevents prototype pollution via JSON.parse", async () => {
     const payload =
-      '{"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}, "safe": 1}';
+      '{"__proto__": {"polluted": true}, "constructor": {"kind": "schema", "version": 1}, "safe": 1}';
     const buffer = Buffer.from(payload);
     const result = await decodeValue(buffer, "json");
 
-    expect(result).toEqual({ safe: 1 });
+    expect(result).toEqual({ safe: 1, constructor: { kind: "schema", version: 1 } });
     expect({}.hasOwnProperty("polluted")).toBe(false);
     expect((result as any).__proto__.polluted).toBeUndefined();
-    expect((result as any).constructor.prototype?.polluted).toBeUndefined();
+    expect((result as any).constructor.kind).toBe("schema");
+    expect((result as any).constructor.version).toBe(1);
+  });
+
+  it("removes constructor prototype pollution path", async () => {
+    const payload = '{"constructor": {"prototype": {"polluted": true}}, "safe": 1}';
+    const buffer = Buffer.from(payload);
+    const result = await decodeValue(buffer, "json");
+
+    expect(result).toEqual({ safe: 1, constructor: {} });
+    expect((result as any).constructor.prototype).toBeUndefined();
   });
 });
 
