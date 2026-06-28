@@ -35,6 +35,12 @@ async function clusterSafePath(
   return Promise.all(configs.map((cfg) => cfg.cache.getBatch(cfg.keys)));
 }
 
+/**
+ * Executes a single MGET across all caches for one round trip.
+ * Use the first cache's client — all caches must share the same standalone client
+ * for this path to be safe. In cluster mode keys land on different slots, so MGET
+ * will fail unless all keys hash to the same slot, which they do not here.
+ */
 async function singleRoundTripPath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
@@ -76,9 +82,6 @@ async function singleRoundTripPath(
     return emptyResults;
   }
 
-  // Use the first cache's client — all caches must share the same standalone client
-  // for this path to be safe. In cluster mode keys land on different slots, so MGET
-  // will fail unless all keys hash to the same slot, which they do not here.
   const client = configs[0].cache.getClient();
   const rawValues = await client.mget(allPhysicalKeys, { decoder: Decoder.Bytes });
 
