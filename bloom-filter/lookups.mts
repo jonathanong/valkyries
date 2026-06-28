@@ -122,9 +122,8 @@ function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): 
   const boolResults = new Array<boolean | null>(totalLen);
   let idx = 0;
   for (let i = 0; i < batches.length; i++) {
-    const batchItems = batches[i]!;
     const results = batchResults[i];
-    const bLen = batchItems.length;
+    const bLen = batches[i]!.length;
     if (!Array.isArray(results)) {
       for (let j = 0; j < bLen; j++) {
         boolResults[idx++] = null;
