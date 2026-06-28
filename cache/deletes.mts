@@ -44,8 +44,8 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     }
 
     if (keyArray.length === 0) return 0;
-    const invalidationKeys = [];
-    invalidationKeys.length = serializedKeys.length;
+    // eslint-disable-next-line unicorn/no-new-array
+    const invalidationKeys = new Array(serializedKeys.length);
     for (let i = 0; i < serializedKeys.length; i++) {
       invalidationKeys[i] = this.getSerializedInvalidationKey(serializedKeys[i]);
     }
@@ -66,8 +66,8 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     // What: Pre-allocate array and use an indexed loop.
     // Why: Avoids iterator overhead and array resizing during mapping.
     // Impact: Measurably faster in internal benchmarks for larger batch delete operations, reducing GC allocation pressure.
-    const keyArray: Array<string> = [];
-    keyArray.length = len;
+    // eslint-disable-next-line unicorn/no-new-array
+    const keyArray = new Array<string>(len);
     for (let i = 0; i < len; i++) {
       keyArray[i] = this.getSerializedCacheKey(serializedKeys[i]);
     }
@@ -112,9 +112,46 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     }
 
     let deleted = 0;
+    let promises: Promise<number>[] = [];
+    const addSettledResults = (results: PromiseSettledResult<number>[]): void => {
+      let batchDeleted = 0;
+      let hasFailure = false;
+      let failure: unknown;
+
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.status === "fulfilled") {
+          batchDeleted += result.value;
+        } else if (!hasFailure) {
+          hasFailure = true;
+          failure = result.reason;
+        }
+      }
+
+      if (hasFailure) {
+        throw failure;
+      }
+      deleted += batchDeleted;
+    };
+
+    // ⚡ Bolt Optimization:
+    // What: Execute independent cache deletions concurrently instead of sequentially, with batching.
+    // Why: Eliminates N+1 query performance bottleneck across multiple clients, improving throughput.
+    // Impact: Reduces execution time linearly with the number of target clients.
     for (const [client, group] of groups) {
-      deleted += await ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      const p = ValkeyCacheDeletes.deleteSerializedEntriesFromClient(client, group);
+      promises.push(p);
+
+      if (promises.length >= 100) {
+        addSettledResults(await Promise.allSettled(promises));
+        promises = [];
+      }
     }
+
+    if (promises.length > 0) {
+      addSettledResults(await Promise.allSettled(promises));
+    }
+
     return deleted;
   }
 

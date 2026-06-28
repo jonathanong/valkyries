@@ -96,4 +96,87 @@ describe("ValkeyCache.deleteFromCaches", () => {
     expect(firstInvokeScript).toHaveBeenCalledTimes(1);
     expect(secondInvokeScript).toHaveBeenCalledTimes(1);
   });
+
+  it("waits for all started deletes before rejecting", async () => {
+    let resolveSecond!: (count: number) => void;
+    const secondPromise = new Promise<number>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const firstInvokeScript = vi
+      .fn<GlideClient["invokeScript"]>()
+      .mockRejectedValue(new Error("first client failed"));
+    const secondInvokeScript = vi.fn<GlideClient["invokeScript"]>().mockReturnValue(secondPromise);
+    const firstClient = { invokeScript: firstInvokeScript } as unknown as GlideClient;
+    const secondClient = { invokeScript: secondInvokeScript } as unknown as GlideClient;
+    const first = new ValkeyCache({
+      prefix: "first-client-delete-error",
+      ttlSeconds: 30,
+      client: firstClient,
+    });
+    const second = new ValkeyCache({
+      prefix: "second-client-delete-error",
+      ttlSeconds: 30,
+      client: secondClient,
+    });
+
+    let rejected = false;
+    const deletePromise = ValkeyCache.deleteFromCaches([
+      { cache: first, keys: ["a"] },
+      { cache: second, keys: ["b"] },
+    ]).catch((error) => {
+      rejected = true;
+      return error;
+    });
+
+    await Promise.resolve();
+    expect(rejected).toBe(false);
+
+    resolveSecond(1);
+    const error = await deletePromise;
+    expect(rejected).toBe(true);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("first client failed");
+  });
+
+  it("rejects when a started delete fails with null", async () => {
+    let resolveSecond!: (count: number) => void;
+    const secondPromise = new Promise<number>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const firstInvokeScript = vi.fn<GlideClient["invokeScript"]>().mockRejectedValue(null);
+    const secondInvokeScript = vi.fn<GlideClient["invokeScript"]>().mockReturnValue(secondPromise);
+    const firstClient = { invokeScript: firstInvokeScript } as unknown as GlideClient;
+    const secondClient = { invokeScript: secondInvokeScript } as unknown as GlideClient;
+    const first = new ValkeyCache({
+      prefix: "first-client-delete-null-error",
+      ttlSeconds: 30,
+      client: firstClient,
+    });
+    const second = new ValkeyCache({
+      prefix: "second-client-delete-null-error",
+      ttlSeconds: 30,
+      client: secondClient,
+    });
+
+    const deletePromise = ValkeyCache.deleteFromCaches([
+      { cache: first, keys: ["a"] },
+      { cache: second, keys: ["b"] },
+    ]);
+    let settled = false;
+    deletePromise.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveSecond(1);
+    await expect(deletePromise).rejects.toBeNull();
+    expect(settled).toBe(true);
+  });
 });
