@@ -68,7 +68,9 @@ describe("clients.generated", () => {
     }) as typeof decodeURIComponent;
 
     try {
-      expect(() => glideConfigFromUrl("redis://user:pass@localhost:6379")).toThrow("Invalid Valkey URL");
+      expect(() => glideConfigFromUrl("redis://user:pass@localhost:6379")).toThrow(
+        "Invalid Valkey URL",
+      );
     } finally {
       globalThis.decodeURIComponent = originalDecodeURIComponent;
     }
