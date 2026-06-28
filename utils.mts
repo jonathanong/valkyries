@@ -11,12 +11,12 @@
 export function normalizeTtlResult(value: unknown): number | null {
   if (typeof value === "number") {
     if (value === -2 || value === -1) return value; // Preserve sentinel values
-    return Math.floor(value / 1000); // Convert milliseconds to seconds
+    return Math.trunc(value / 1000); // Convert milliseconds to seconds
   }
   if (typeof value === "bigint") {
     const num = Number(value);
     if (num === -2 || num === -1) return num;
-    return Math.floor(num / 1000);
+    return Math.trunc(num / 1000);
   }
   return null;
 }

@@ -1,7 +1,0 @@
-🎯 **What:** Removed unnecessary `as Error` type casts when calling `handleValkeyError` in bloom filter lookup and rebuild modules.
-
-💡 **Why:** The `handleValkeyError` function explicitly accepts an `unknown` type and normalizes it to an `Error` internally. The type cast was redundant and potentially misleading. Removing it improves codebase cleanliness.
-
-✅ **Verification:** Verified by running `pnpm run oxlint`, `pnpm run oxfmt`, and the full test suite (`pnpm test`). The changes did not cause any type errors or test regressions.
-
-✨ **Result:** Improved maintainability and consistency without changing runtime behavior.

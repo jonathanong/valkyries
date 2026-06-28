@@ -102,27 +102,33 @@ export abstract class ValkeyCacheCore<K = string> {
     serializedKeys: string[];
     outputIndices: number[];
   } {
-    const validKeys: K[] = [];
-    const serializedKeys: string[] = [];
-    const outputIndices: number[] = [];
+    /* eslint-disable unicorn/no-new-array */
+    const validKeys: K[] = new Array(keys.length);
+    const serializedKeys: string[] = new Array(keys.length);
+    const outputIndices: number[] = new Array(keys.length);
+    /* eslint-enable unicorn/no-new-array */
     const seen = new Map<string, number>();
+    let validCount = 0;
     for (let i = 0; i < keys.length; i++) {
       const serialized = this.toSerializedKey(keys[i]);
       if (serialized === null) {
-        outputIndices.push(-1);
+        outputIndices[i] = -1;
         continue;
       }
       const existing = seen.get(serialized);
       if (existing !== undefined) {
-        outputIndices.push(existing);
+        outputIndices[i] = existing;
       } else {
-        const idx = validKeys.length;
+        const idx = validCount;
         seen.set(serialized, idx);
-        validKeys.push(keys[i]);
-        serializedKeys.push(serialized);
-        outputIndices.push(idx);
+        validKeys[idx] = keys[i];
+        serializedKeys[idx] = serialized;
+        validCount++;
+        outputIndices[i] = idx;
       }
     }
+    validKeys.length = validCount;
+    serializedKeys.length = validCount;
     return { validKeys, serializedKeys, outputIndices };
   }
 
@@ -146,7 +152,15 @@ export abstract class ValkeyCacheCore<K = string> {
     serializedKeys: string[];
   } {
     const { serializedKeys, outputIndices } = this.deduplicateKeys(keys);
-    const physicalKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate array and use an indexed loop instead of .map().
+    // Why: Avoids iterator closures and array resizing in the hot physical key generation path.
+    // Impact: Improves performance and reduces GC pressure for large batches.
+    // eslint-disable-next-line unicorn/no-new-array
+    const physicalKeys = new Array<string>(serializedKeys.length);
+    for (let i = 0; i < serializedKeys.length; i++) {
+      physicalKeys[i] = this.getSerializedCacheKey(serializedKeys[i]);
+    }
     return { physicalKeys, outputIndices, serializedKeys };
   }
 
@@ -196,8 +210,17 @@ export abstract class ValkeyCacheCore<K = string> {
   }
 
   protected async getValuesWithTtl(serializedKeys: string[]): Promise<CacheEntry[]> {
-    if (serializedKeys.length === 0) return [];
-    const cacheKeys = serializedKeys.map((k) => this.getSerializedCacheKey(k));
+    const len = serializedKeys.length;
+    if (len === 0) return [];
+    // ⚡ Bolt Optimization:
+    // What: Pre-allocate cacheKeys array and use an indexed loop instead of .map().
+    // Why: Avoids iterator closures and array resizing in the hot script invocation path.
+    // Impact: Improves performance and reduces GC pressure for large batch fetches.
+    // eslint-disable-next-line unicorn/no-new-array
+    const cacheKeys = new Array<string>(len);
+    for (let i = 0; i < len; i++) {
+      cacheKeys[i] = this.getSerializedCacheKey(serializedKeys[i]);
+    }
     const bloomEnabled = this.bloomFilterEnabled?.() ?? true;
     const bloomFilterKey = bloomEnabled ? (this.bloomFilter?.getKey() ?? "") : "";
     const scriptResult = await retrySaturationError(
@@ -210,9 +233,12 @@ export abstract class ValkeyCacheCore<K = string> {
       { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
     );
     const rawResults = Array.isArray(scriptResult) ? scriptResult : [];
-    return Promise.all(
-      serializedKeys.map((key, index) => this.decodeCacheEntry(key, rawResults, index)),
-    );
+    // eslint-disable-next-line unicorn/no-new-array
+    const promises = new Array<Promise<CacheEntry>>(len);
+    for (let i = 0; i < len; i++) {
+      promises[i] = this.decodeCacheEntry(serializedKeys[i], rawResults, i);
+    }
+    return Promise.all(promises);
   }
 
   protected shouldRefreshTtl(ttlSecondsRemaining: number | null) {
