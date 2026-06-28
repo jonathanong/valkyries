@@ -54,8 +54,7 @@ export async function mexists(
     return boolResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    // eslint-disable-next-line unicorn/no-new-array
-    return new Array<null>(len).fill(null);
+    return buildNullResults(len);
   }
 }
 
@@ -108,8 +107,7 @@ export async function mexistsIfReady(
     return normalizedResults;
   } catch (error) {
     handleValkeyError(error as Error);
-    // eslint-disable-next-line unicorn/no-new-array
-    return new Array<null>(len).fill(null);
+    return buildNullResults(len);
   }
 }
 
@@ -122,15 +120,31 @@ function buildBatches(items: string[], batchSize: number): string[][] {
 }
 
 function normalizeBatchedResults(batches: string[][], batchResults: unknown[]): (boolean | null)[] {
-  const boolResults: (boolean | null)[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < batches.length; i++) {
+    totalLength += batches[i]!.length;
+  }
+
+  // eslint-disable-next-line unicorn/no-new-array
+  const boolResults = new Array<boolean | null>(totalLength);
+  let offset = 0;
   for (let i = 0; i < batches.length; i++) {
     const batchItems = batches[i]!;
     const results = batchResults[i];
     if (!Array.isArray(results)) {
-      boolResults.push(...batchItems.map((): null => null));
+      for (let j = 0; j < batchItems.length; j++) {
+        boolResults[offset++] = null;
+      }
     } else {
-      boolResults.push(...results.map(normalizeBloomCheckResult));
+      for (let j = 0; j < batchItems.length; j++) {
+        boolResults[offset++] = j < results.length ? normalizeBloomCheckResult(results[j]) : null;
+      }
     }
   }
   return boolResults;
+}
+
+function buildNullResults(length: number): null[] {
+  // eslint-disable-next-line unicorn/no-new-array
+  return new Array<null>(length).fill(null);
 }
