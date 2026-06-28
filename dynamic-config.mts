@@ -210,6 +210,10 @@ export class DynamicConfig {
       if (value === undefined) continue;
       result[name] = value;
     }
+    for (const [name, value] of this.fields) {
+      if (Object.hasOwn(result, name)) continue;
+      result[name] = value;
+    }
     return result;
   }
 

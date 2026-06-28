@@ -8,6 +8,7 @@ describe("dynamic config", () => {
     config["fields"] = new Map<string, DynamicConfigField>([
       ["enabled", true],
       ["prefix", "default"],
+      ["localFlag", true],
     ]);
     config["fieldsConfig"] = [
       { name: "enabled", type: "boolean" as DynamicConfigFieldType, defaultValue: false },
@@ -18,6 +19,7 @@ describe("dynamic config", () => {
     expect(config.getFields()).toEqual({
       enabled: true,
       prefix: "default",
+      localFlag: true,
     });
   });
 });
