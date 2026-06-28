@@ -39,6 +39,29 @@ describe("isRetryableValkeyError", () => {
     expect(isRetryableValkeyError(new Error("ERR syntax error"))).toBe(false);
     expect(isRetryableValkeyError(new Error("Out of memory"))).toBe(false);
   });
+
+  it("returns false for non-Error objects with matching message property", () => {
+    expect(isRetryableValkeyError({ message: "Reached maximum inflight requests" })).toBe(false);
+  });
+
+  it("returns false for Error instances without a message", () => {
+    expect(isRetryableValkeyError(new Error())).toBe(false);
+  });
+
+  it("returns true for custom errors extending Error", () => {
+    class CustomError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = "CustomError";
+      }
+    }
+    expect(isRetryableValkeyError(new CustomError("Reached maximum inflight requests"))).toBe(true);
+  });
+
+  it("returns false for case-sensitive mismatch", () => {
+    // Current implementation uses includes() which is case-sensitive
+    expect(isRetryableValkeyError(new Error("reached maximum inflight requests"))).toBe(false);
+  });
 });
 
 /** Creates a fn that always rejects with a transient inflight error; returns the fn + call counter. */
