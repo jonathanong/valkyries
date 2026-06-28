@@ -32,10 +32,16 @@ export async function multiCacheGetByAnyBatch<
 async function clusterSafePath(
   configs: Array<{ cache: ValkeyCache<any>; keys: any[] }>,
 ): Promise<Array<Array<CacheValue>>> {
+  if (configs.length === 0) {
+    return [];
+  }
+
+  // Hot-path optimization: avoid per-item closures/allocations from map() on every call.
   // eslint-disable-next-line unicorn/no-new-array
   const promises = new Array<Promise<Array<CacheValue>>>(configs.length);
   for (let i = 0; i < configs.length; i++) {
-    promises[i] = configs[i].cache.getBatch(configs[i].keys);
+    const cfg = configs[i];
+    promises[i] = cfg.cache.getBatch(cfg.keys);
   }
   return Promise.all(promises);
 }
