@@ -119,7 +119,7 @@ async function singleRoundTripPath<TConfigs extends ReadonlyArray<BatchConfig>>(
       const idx = outputIndices[j];
       scattered[j] = idx === -1 ? null : dedupedValues[idx];
     }
-    results.push(scattered);
+    results[i] = scattered;
   }
 
   return results as BatchResult<TConfigs>;
