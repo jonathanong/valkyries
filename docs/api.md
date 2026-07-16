@@ -16,7 +16,7 @@ This is the entry point for the public `valkyries` API. Detailed API documentati
 - [Events and metrics](events-and-metrics.md) - `valkeyEvents`, cache metrics, event payloads, and error handling hooks.
 - [Lua scripts](lua-scripts.md) - packaged Lua scripts and script-loading helpers.
 - [Configuration](configuration.md) - environment variables and connection behavior.
-- [Utilities](utilities.md) - key normalization, cache serialization helpers, TTL/count normalization, and timing helpers.
+- [Utilities](utilities.md) - key and Valkey result normalization helpers.
 
 ## Package Entry Points
 

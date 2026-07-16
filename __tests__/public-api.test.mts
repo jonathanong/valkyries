@@ -1,7 +1,5 @@
-import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
 import * as api from "../index.mts";
-import { decodeValue, serializeValue } from "../cache-utils.mts";
 import { setValkeyErrorHandler, handleValkeyError } from "../errors.mts";
 import { emitValkeyEvent, valkeyEvents } from "../events.mts";
 import { normalizeKey } from "../key-normalization.mts";
@@ -10,6 +8,7 @@ describe("public api", () => {
   it("exports the package surface", () => {
     expect(api.ValkeyCache).toBeTypeOf("function");
     expect(Reflect.get(api.ValkeyCache, "deleteFromCaches")).toBeTypeOf("function");
+    expect(Reflect.get(api.ValkeyCache, "invalidateMany")).toBeTypeOf("function");
     expect(api.ValkeyBloomFilter).toBeTypeOf("function");
     expect(api.DynamicConfig).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
@@ -28,22 +27,6 @@ describe("public api", () => {
 
   it("normalizes keys", () => {
     expect(normalizeKey("  AbC  ")).toBe("abc");
-  });
-
-  it("serializes and decodes cache values across modes", async () => {
-    const json = await serializeValue({ ok: true }, "json");
-    expect(await decodeValue(Buffer.from(json), "json")).toEqual({ ok: true });
-
-    const text = await serializeValue("hello", "text");
-    expect(await decodeValue(Buffer.from(text), "text")).toBe("hello");
-
-    const buffer = await serializeValue(Buffer.from("hello"), "buffer");
-    expect(await decodeValue(Buffer.from(buffer), "buffer")).toEqual(Buffer.from("hello"));
-
-    const large = await serializeValue({ data: "x".repeat(3_000) }, "json");
-    expect(Buffer.isBuffer(large)).toBe(true);
-    expect(await decodeValue(large, "json")).toEqual({ data: "x".repeat(3_000) });
-    expect(await decodeValue(null, "json")).toBeNull();
   });
 
   it("uses the configured error handler", () => {

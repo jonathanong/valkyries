@@ -2,7 +2,7 @@ import type { GlideClient } from "@valkey/valkey-glide";
 import type { ValkeyCache } from "../cache.mts";
 import { cacheValkeyClient } from "../clients.mts";
 import { emitValkeyEvent } from "../events.mts";
-import { deleteKeysWithPrefix } from "../delete.mts";
+import { deleteKeysWithLiteralPrefixes } from "../delete.mts";
 import { normalizeCountResult } from "../utils.mts";
 import {
   CACHE_NAMESPACE,
@@ -156,11 +156,21 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
   }
 
   static async invalidate(prefix: string, client = cacheValkeyClient) {
-    await deleteKeysWithPrefix(
+    await ValkeyCacheDeletes.invalidateMany([prefix], client);
+  }
+
+  static async invalidateMany(prefixes: readonly string[], client = cacheValkeyClient) {
+    const uniquePrefixes = [...new Set(prefixes)];
+    if (uniquePrefixes.length === 0) return;
+
+    await deleteKeysWithLiteralPrefixes(
       client,
-      prefix ? `${CACHE_NAMESPACE}:${prefix}:*` : `${CACHE_NAMESPACE}:*`,
+      `${CACHE_NAMESPACE}:*`,
+      uniquePrefixes.map((prefix) => `${CACHE_NAMESPACE}:${prefix ? `${prefix}:` : ""}`),
     );
-    emitValkeyEvent("cache:invalidate", { cacheName: prefix });
+    for (const prefix of uniquePrefixes) {
+      emitValkeyEvent("cache:invalidate", { cacheName: prefix });
+    }
   }
 
   private static async deleteSerializedEntriesFromClient(

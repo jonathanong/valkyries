@@ -209,6 +209,19 @@ ValkeyCache.invalidate(prefix: string, client?: GlideClient): Promise<void>
 
 Deletes every cache key for `prefix`. Passing an empty prefix invalidates all cache namespaces visible to the client.
 
+## `ValkeyCache.invalidateMany(prefixes, client?)`
+
+```ts
+ValkeyCache.invalidateMany(
+  prefixes: readonly string[],
+  client?: GlideClient,
+): Promise<void>
+```
+
+Deletes every cache key for the supplied prefixes with one cursor scan. Duplicate prefixes are
+ignored, an empty list is a no-op, and an empty prefix invalidates all cache namespaces visible to
+the client.
+
 ## `getKey(key)`
 
 ```ts
