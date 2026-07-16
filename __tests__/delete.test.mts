@@ -110,7 +110,8 @@ describe("deleteKeysWithPrefix", () => {
     const unlinkMock = vi.fn().mockResolvedValueOnce(2);
     const client = { scan: scanMock, unlink: unlinkMock } as unknown as GlideClient;
 
-    await deleteKeysWithLiteralPrefixes(client, "cache:*", ["cache:users:", "cache:topics:"]);
+    const prefixes = ["cache:users:", null, "cache:topics:", undefined] as unknown as string[];
+    await deleteKeysWithLiteralPrefixes(client, "cache:*", prefixes);
 
     expect(scanMock).toHaveBeenCalledWith("0", { match: "cache:*", count: 500 });
     expect(unlinkMock).toHaveBeenCalledWith(["cache:users:1", "cache:topics:1"]);

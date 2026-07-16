@@ -13,7 +13,9 @@ export async function deleteKeysWithLiteralPrefixes(
   pattern: string,
   prefixes: readonly string[],
 ): Promise<void> {
-  const uniquePrefixes = [...new Set(prefixes)];
+  const uniquePrefixes = [...new Set<unknown>(prefixes)].filter(
+    (prefix): prefix is string => typeof prefix === "string",
+  );
   if (uniquePrefixes.length === 0) return;
 
   await scanAndUnlink(client, pattern, (key) =>

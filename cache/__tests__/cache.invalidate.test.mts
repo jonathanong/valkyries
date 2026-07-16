@@ -18,7 +18,8 @@ describe("ValkeyCache.invalidateMany", () => {
     valkeyEvents.on("cache:invalidate", handler);
 
     try {
-      await ValkeyCache.invalidateMany(["users", "topics", "users"], client);
+      const prefixes = ["users", null, "topics", undefined, "users"] as unknown as string[];
+      await ValkeyCache.invalidateMany(prefixes, client);
     } finally {
       valkeyEvents.off("cache:invalidate", handler);
     }
@@ -33,12 +34,13 @@ describe("ValkeyCache.invalidateMany", () => {
     expect(invalidated).toEqual(["users", "topics"]);
   });
 
-  it("does nothing for an empty prefix list", async () => {
+  it("does nothing when no valid string prefixes are supplied", async () => {
     const scan = vi.fn();
     const unlink = vi.fn();
     const client = { scan, unlink } as unknown as GlideClient;
+    const prefixes = [null, undefined, 42] as unknown as string[];
 
-    await ValkeyCache.invalidateMany([], client);
+    await ValkeyCache.invalidateMany(prefixes, client);
 
     expect(scan).not.toHaveBeenCalled();
     expect(unlink).not.toHaveBeenCalled();

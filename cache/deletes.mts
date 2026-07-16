@@ -160,7 +160,9 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
   }
 
   static async invalidateMany(prefixes: readonly string[], client = cacheValkeyClient) {
-    const uniquePrefixes = [...new Set(prefixes)];
+    const uniquePrefixes = [...new Set<unknown>(prefixes)].filter(
+      (prefix): prefix is string => typeof prefix === "string",
+    );
     if (uniquePrefixes.length === 0) return;
 
     await deleteKeysWithLiteralPrefixes(
