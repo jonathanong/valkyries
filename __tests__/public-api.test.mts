@@ -16,6 +16,7 @@ describe("public api", () => {
     expect(api.reserveIdempotencyKey).toBeTypeOf("function");
     expect(api.completeIdempotencyKey).toBeTypeOf("function");
     expect(api.releaseIdempotencyKey).toBeTypeOf("function");
+    expect(api.unlinkIfValueMatches).toBeTypeOf("function");
     expect(api.closeValkeyClients).toBeTypeOf("function");
     expect(api.isRetryableValkeyError).toBeTypeOf("function");
     expect(api.retryValkeyOperation).toBeTypeOf("function");

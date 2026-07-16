@@ -1,4 +1,5 @@
--- Release an idempotency reservation only if the caller still owns the token.
+-- Compatibility script for callers that load the historical idempotency-specific filename.
+-- New code should use unlink-if-value-matches.lua through unlinkIfValueMatches().
 -- KEYS[1] = idempotency key
 -- ARGV[1] = expected processing value
 -- Returns: 1 when released, 0 when absent or changed.

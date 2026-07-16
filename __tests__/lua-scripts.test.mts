@@ -29,9 +29,10 @@ const scriptRegistry = {
   idempotencyKeyCompleteIfCurrent: new Script(
     loadScript("idempotency-key-complete-if-current.lua", scriptBaseUrl),
   ),
-  idempotencyKeyReleaseIfCurrent: new Script(
+  legacyIdempotencyKeyReleaseIfCurrent: new Script(
     loadScript("idempotency-key-release-if-current.lua", scriptBaseUrl),
   ),
+  unlinkIfValueMatches: new Script(loadScript("unlink-if-value-matches.lua", scriptBaseUrl)),
   rateLimiterAdd: new Script(loadScript("rate-limiter-add.lua", scriptBaseUrl)),
   rateLimiterGet: new Script(loadScript("rate-limiter-get.lua", scriptBaseUrl)),
   rateLimiterAddAndCheck: new Script(loadScript("rate-limiter-add-and-check.lua", scriptBaseUrl)),
@@ -234,13 +235,13 @@ describe("lua scripts", () => {
       expect(
         await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
           keys: [key],
-          args: ["30", "processing", "completed", "token-1"],
+          args: ["30", "processing", "completed", "token-1", "0", "30"],
         }),
       ).toBe("reserved");
       expect(
         await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
           keys: [key],
-          args: ["30", "processing", "completed", "token-2"],
+          args: ["30", "processing", "completed", "token-2", "0", "30"],
         }),
       ).toBe("processing");
       expect(
@@ -264,11 +265,11 @@ describe("lua scripts", () => {
       expect(
         await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
           keys: [key],
-          args: ["30", "processing", "completed", "token-3"],
+          args: ["30", "processing", "completed", "token-3", "0", "30"],
         }),
       ).toBe("completed");
       expect(
-        await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReleaseIfCurrent, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.legacyIdempotencyKeyReleaseIfCurrent, {
           keys: [key],
           args: ["processing:token-1"],
         }),
@@ -281,10 +282,10 @@ describe("lua scripts", () => {
     try {
       await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReserve, {
         keys: [releasedKey],
-        args: ["30", "processing", "completed", "token-1"],
+        args: ["30", "processing", "completed", "token-1", "0", "30"],
       });
       expect(
-        await cacheValkeyClient.invokeScript(scriptRegistry.idempotencyKeyReleaseIfCurrent, {
+        await cacheValkeyClient.invokeScript(scriptRegistry.unlinkIfValueMatches, {
           keys: [releasedKey],
           args: ["processing:token-1"],
         }),

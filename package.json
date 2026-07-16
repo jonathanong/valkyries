@@ -32,6 +32,11 @@
       "import": "./dist/cache.mjs",
       "default": "./dist/cache.mjs"
     },
+    "./conditional": {
+      "types": "./dist/conditional.d.mts",
+      "import": "./dist/conditional.mjs",
+      "default": "./dist/conditional.mjs"
+    },
     "./bloom-filter": {
       "types": "./dist/bloom-filter.d.mts",
       "import": "./dist/bloom-filter.mjs",

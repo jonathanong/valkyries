@@ -4,6 +4,7 @@ export * from "./cache.mts";
 export * from "./bloom-filter.mts";
 export * from "./dynamic-config.mts";
 export * from "./idempotency-key.mts";
+export * from "./conditional.mts";
 export * from "./clients.mts";
 export * from "./shutdown.mts";
 export * from "./scripts.mts";
