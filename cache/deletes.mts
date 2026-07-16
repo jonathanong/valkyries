@@ -166,7 +166,9 @@ export class ValkeyCacheDeletes<K = string> extends ValkeyCacheMutations<K> {
     await deleteKeysWithLiteralPrefixes(
       client,
       `${CACHE_NAMESPACE}:*`,
-      uniquePrefixes.map((prefix) => `${CACHE_NAMESPACE}:${prefix ? `${prefix}:` : ""}`),
+      uniquePrefixes.map((prefix) =>
+        prefix ? `${CACHE_NAMESPACE}:${prefix}:` : `${CACHE_NAMESPACE}:`,
+      ),
     );
     for (const prefix of uniquePrefixes) {
       emitValkeyEvent("cache:invalidate", { cacheName: prefix });
