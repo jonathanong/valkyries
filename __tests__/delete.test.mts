@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GlideClient } from "@valkey/valkey-glide";
-import { deleteKeysWithPrefix } from "../delete.mts";
+import { deleteKeysWithLiteralPrefixes, deleteKeysWithPrefix } from "../delete.mts";
 
 const { mockHandleValkeyError } = vi.hoisted(() => ({
   mockHandleValkeyError: vi.fn(),
@@ -31,7 +31,7 @@ describe("deleteKeysWithPrefix", () => {
     await deleteKeysWithPrefix(client, "prefix:*");
 
     expect(scanMock).toHaveBeenCalledTimes(1);
-    expect(scanMock).toHaveBeenCalledWith("0", { match: "prefix:*" });
+    expect(scanMock).toHaveBeenCalledWith("0", { match: "prefix:*", count: 500 });
     expect(unlinkMock).toHaveBeenCalledTimes(1);
     expect(unlinkMock).toHaveBeenCalledWith(["prefix:key1", "prefix:key2"]);
   });
@@ -48,7 +48,7 @@ describe("deleteKeysWithPrefix", () => {
     await deleteKeysWithPrefix(client, "nonexistent:*");
 
     expect(scanMock).toHaveBeenCalledTimes(1);
-    expect(scanMock).toHaveBeenCalledWith("0", { match: "nonexistent:*" });
+    expect(scanMock).toHaveBeenCalledWith("0", { match: "nonexistent:*", count: 500 });
     expect(unlinkMock).not.toHaveBeenCalled();
   });
 
@@ -69,9 +69,9 @@ describe("deleteKeysWithPrefix", () => {
     await deleteKeysWithPrefix(client, "prefix:*");
 
     expect(scanMock).toHaveBeenCalledTimes(3);
-    expect(scanMock).toHaveBeenNthCalledWith(1, "0", { match: "prefix:*" });
-    expect(scanMock).toHaveBeenNthCalledWith(2, "10", { match: "prefix:*" });
-    expect(scanMock).toHaveBeenNthCalledWith(3, "20", { match: "prefix:*" });
+    expect(scanMock).toHaveBeenNthCalledWith(1, "0", { match: "prefix:*", count: 500 });
+    expect(scanMock).toHaveBeenNthCalledWith(2, "10", { match: "prefix:*", count: 500 });
+    expect(scanMock).toHaveBeenNthCalledWith(3, "20", { match: "prefix:*", count: 500 });
 
     expect(unlinkMock).toHaveBeenCalledTimes(2);
     expect(unlinkMock).toHaveBeenNthCalledWith(1, ["prefix:a", "prefix:b"]);
@@ -103,13 +103,23 @@ describe("deleteKeysWithPrefix", () => {
     expect(mockHandleValkeyError).toHaveBeenCalledWith(mockError);
   });
 
-  it("should not await unlink before scanning the next cursor page", async () => {
+  it("deletes only keys with the supplied literal prefixes", async () => {
+    const scanMock = vi
+      .fn()
+      .mockResolvedValueOnce(["0", ["cache:users:1", "cache:topics:1", "cache:other:1"]]);
+    const unlinkMock = vi.fn().mockResolvedValueOnce(2);
+    const client = { scan: scanMock, unlink: unlinkMock } as unknown as GlideClient;
+
+    const prefixes = ["cache:users:", null, "cache:topics:", undefined] as unknown as string[];
+    await deleteKeysWithLiteralPrefixes(client, "cache:*", prefixes);
+
+    expect(scanMock).toHaveBeenCalledWith("0", { match: "cache:*", count: 500 });
+    expect(unlinkMock).toHaveBeenCalledWith(["cache:users:1", "cache:topics:1"]);
+  });
+
+  it("awaits unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
-    let resolveSecondScan: () => void;
-    const secondScanStarted = new Promise<void>((resolve) => {
-      resolveSecondScan = resolve;
-    });
     const blockUnlink = new Promise<void>((resolve) => {
       resolveUnlink = resolve;
     });
@@ -119,13 +129,11 @@ describe("deleteKeysWithPrefix", () => {
       if (cursor === "0") {
         return ["10", ["prefix:1"]];
       }
-      resolveSecondScan!();
       return ["0", []];
     });
 
     const unlinkMock = vi.fn().mockImplementation(async () => {
       scanCalls.push("unlink");
-      await secondScanStarted;
       await blockUnlink;
       return 1;
     });
@@ -137,12 +145,12 @@ describe("deleteKeysWithPrefix", () => {
 
     const result = deleteKeysWithPrefix(client, "prefix:*");
 
-    await Promise.resolve();
-    await secondScanStarted;
-    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
+    await vi.waitFor(() => expect(unlinkMock).toHaveBeenCalledOnce());
+    expect(scanCalls).toEqual(["scan:0", "unlink"]);
     resolveUnlink!();
     await result;
 
+    expect(scanCalls).toEqual(["scan:0", "unlink", "scan:10"]);
     expect(unlinkMock).toHaveBeenCalledTimes(1);
     expect(scanMock).toHaveBeenCalledTimes(2);
   });

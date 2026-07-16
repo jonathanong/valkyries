@@ -107,11 +107,3 @@ onGracefulShutdown(): Promise<void>
 ```
 
 Both exports point to the same idempotent shutdown function. It closes all live dynamic configs, package-managed clients, and the dynamic-config subscription client.
-
-## `deleteKeysWithPrefix(client, pattern)`
-
-```ts
-deleteKeysWithPrefix(client: GlideClient, pattern: string): Promise<void>
-```
-
-Scans keys matching `pattern` and unlinks them in batches. This helper is used by cache and rate-limiter invalidation APIs.
