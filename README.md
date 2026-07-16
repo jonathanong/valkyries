@@ -122,6 +122,8 @@ Call `closeValkeyClients()` to close package-managed clients.
 - [Bloom filters](docs/bloom-filters.md)
 - [Dynamic config](docs/dynamic-config.md)
 - [Rate limiter](docs/rate-limiter.md)
+- [Idempotency keys](docs/idempotency-key.md)
+- [Conditional operations](docs/conditional-operations.md)
 - [Events and metrics](docs/events-and-metrics.md)
 - [Lua scripts](docs/lua-scripts.md)
 - [Utilities](docs/utilities.md)

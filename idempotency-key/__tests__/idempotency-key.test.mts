@@ -90,6 +90,73 @@ describe("idempotency-key", () => {
     }
   });
 
+  it("leaves persistent existing reservations unchanged unless repair is enabled", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      await cacheValkeyClient.set(key, "processing:stale-owner");
+
+      await expect(reserveIdempotencyKey(key, 60)).resolves.toEqual({ state: "processing" });
+      await expect(cacheValkeyClient.ttl(key)).resolves.toBe(-1);
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("repairs persistent processing and completed reservations with state-specific TTLs", async () => {
+    const processingKey = `idempotency:{${rand()}}`;
+    const completedKey = `idempotency:{${rand()}}`;
+    try {
+      await cacheValkeyClient.set(processingKey, "processing:stale-owner");
+      await cacheValkeyClient.set(completedKey, "completed");
+
+      const options = { repairMissingExpiry: { completedTtlSeconds: 120 } };
+      await expect(reserveIdempotencyKey(processingKey, 30, options)).resolves.toEqual({
+        state: "processing",
+      });
+      await expect(reserveIdempotencyKey(completedKey, 30, options)).resolves.toEqual({
+        state: "completed",
+      });
+
+      await expectPositiveTtlSeconds(processingKey, 30);
+      const completedTtl = Number(await cacheValkeyClient.ttl(completedKey));
+      expect(completedTtl).toBeGreaterThan(30);
+      expect(completedTtl).toBeLessThanOrEqual(120);
+    } finally {
+      await cacheValkeyClient.unlink([processingKey, completedKey]);
+    }
+  });
+
+  it("defaults repaired completed reservations to the processing TTL", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      await cacheValkeyClient.set(key, "completed");
+
+      await expect(reserveIdempotencyKey(key, 60, { repairMissingExpiry: {} })).resolves.toEqual({
+        state: "completed",
+      });
+      await expectPositiveTtlSeconds(key, 60);
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
+  it("does not replace an existing positive expiry during repair", async () => {
+    const key = `idempotency:{${rand()}}`;
+    try {
+      await cacheValkeyClient.set(key, "processing:stale-owner");
+      await cacheValkeyClient.customCommand(["EXPIRE", key, "300"]);
+
+      await expect(
+        reserveIdempotencyKey(key, 30, {
+          repairMissingExpiry: { completedTtlSeconds: 60 },
+        }),
+      ).resolves.toEqual({ state: "processing" });
+      expect(Number(await cacheValkeyClient.ttl(key))).toBeGreaterThan(240);
+    } finally {
+      await cacheValkeyClient.unlink([key]);
+    }
+  });
+
   it("allows only one concurrent reservation", async () => {
     const key = `idempotency:{${rand()}}`;
     try {
@@ -195,7 +262,7 @@ describe("idempotency-key", () => {
   it("validates inputs", async () => {
     await expect(getAndDelete("")).rejects.toThrow("key must not be empty");
     await expect(reserveIdempotencyKey("key", 0)).rejects.toThrow(
-      "ttlSeconds must be greater than 0",
+      "ttlSeconds must be a positive safe integer",
     );
     await expect(reserveIdempotencyKey("key", 60, { token: "" })).rejects.toThrow(
       "token must not be empty",
@@ -216,6 +283,21 @@ describe("idempotency-key", () => {
     await expect(
       releaseIdempotencyKey("key", "token", { completedValue: "processing:token" }),
     ).rejects.toThrow("completedValue must not be in the processing namespace");
+
+    const invokeScript = vi.fn<GlideClient["invokeScript"]>();
+    const client = { invokeScript } as unknown as GlideClient;
+    for (const invalidTtl of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(reserveIdempotencyKey("key", invalidTtl, { client })).rejects.toThrow(
+        "ttlSeconds must be a positive safe integer",
+      );
+    }
+    await expect(
+      reserveIdempotencyKey("key", 60, {
+        client,
+        repairMissingExpiry: { completedTtlSeconds: 0 },
+      }),
+    ).rejects.toThrow("completedTtlSeconds must be a positive safe integer");
+    expect(invokeScript).not.toHaveBeenCalled();
   });
 
   it("throws on unexpected script responses", async () => {

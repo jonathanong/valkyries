@@ -26,6 +26,9 @@ reserveIdempotencyKey(
     processingPrefix?: string;
     completedValue?: string;
     token?: string;
+    repairMissingExpiry?: {
+      completedTtlSeconds?: number;
+    };
   },
 ): Promise<
   | { state: "reserved"; token: string }
@@ -38,6 +41,10 @@ Atomically reserves a key when it is absent by storing `processing:<token>` with
 - Generates a random token by default.
 - Returns `processing` when another reservation is active.
 - Returns `completed` when the dedup key has already completed.
+- When `repairMissingExpiry` is present, persistent existing processing values receive
+  `ttlSeconds` and persistent completed values receive `completedTtlSeconds`.
+- `completedTtlSeconds` defaults to `ttlSeconds`; `EXPIRE ... NX` preserves existing expirations.
+- Missing-expiry repair is disabled by default.
 - The caller owns key naming and Redis Cluster hash tags.
 
 ## `completeIdempotencyKey(key, token, ttlSeconds, options?)`
@@ -53,9 +60,13 @@ completeIdempotencyKey(
 
 Atomically changes `processing:<token>` to `completed` with `EX ttlSeconds`.
 
-- `completed`: the caller still owned the reservation and completion was recorded.
+- `completed`: completion is recorded, including when the key was already completed.
 - `missing`: the key was absent.
 - `changed`: the key existed but did not match the caller's token.
+
+Completed values do not retain their reservation token, so an already-completed result cannot
+prove which owner originally completed it. Treating that result as success makes completion safe
+to retry after an ambiguous client or network failure.
 
 ## `releaseIdempotencyKey(key, token, options?)`
 
@@ -93,7 +104,7 @@ try {
 ## Validation
 
 - `key`, `token`, `processingPrefix`, and `completedValue` must be non-empty.
-- `ttlSeconds` must be greater than `0`.
+- `ttlSeconds` and `completedTtlSeconds` must be positive safe integers.
 - `processingPrefix` must not equal `completedValue`.
 - `processingPrefix` and `completedValue` must not equal script result sentinels:
   `reserved`, `missing`, or `changed`.

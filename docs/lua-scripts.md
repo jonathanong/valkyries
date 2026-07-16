@@ -48,8 +48,11 @@ Dynamic config scripts:
 Idempotency key scripts:
 
 - `idempotency-key-complete-if-current.lua`
-- `idempotency-key-release-if-current.lua`
 - `idempotency-key-reserve.lua`
+
+Conditional operation scripts:
+
+- `unlink-if-value-matches.lua`
 
 Rate limiter scripts:
 

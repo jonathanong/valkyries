@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cacheValkeyClient } from "./clients.mts";
+import { unlinkIfValueMatches } from "./conditional.mts";
 import { loadScript, registerScript } from "./scripts.mts";
 import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
@@ -16,10 +17,6 @@ const idempotencyKeyReserveScript = registerScript(
 const idempotencyKeyCompleteIfCurrentScript = registerScript(
   loadScript("idempotency-key-complete-if-current.lua", import.meta.url),
 );
-const idempotencyKeyReleaseIfCurrentScript = registerScript(
-  loadScript("idempotency-key-release-if-current.lua", import.meta.url),
-);
-
 export type GetAndDeleteOptions = {
   /** Optional Valkey client. Defaults to the package cache client. */
   client?: GlideClient;
@@ -37,6 +34,11 @@ export type IdempotencyKeyOptions = {
 export type ReserveIdempotencyKeyOptions = IdempotencyKeyOptions & {
   /** Optional reservation token. Defaults to crypto.randomUUID(). */
   token?: string;
+  /** Opt in to atomically repair persistent existing reservations. */
+  repairMissingExpiry?: {
+    /** TTL for persistent completed values. Defaults to ttlSeconds. */
+    completedTtlSeconds?: number;
+  };
 };
 
 export type IdempotencyReservation =
@@ -63,14 +65,24 @@ export async function reserveIdempotencyKey(
   options: ReserveIdempotencyKeyOptions = {},
 ): Promise<IdempotencyReservation> {
   validateKey(key);
-  validateTtlSeconds(ttlSeconds);
+  validateTtlSeconds("ttlSeconds", ttlSeconds);
   const settings = normalizeIdempotencyOptions(options);
   const token = options.token ?? randomUUID();
   validateNonEmpty("token", token);
+  const repairMissingExpiry = options.repairMissingExpiry !== undefined;
+  const completedTtlSeconds = options.repairMissingExpiry?.completedTtlSeconds ?? ttlSeconds;
+  validateTtlSeconds("completedTtlSeconds", completedTtlSeconds);
 
   const result = await settings.client.invokeScript(idempotencyKeyReserveScript, {
     keys: [key],
-    args: [String(ttlSeconds), settings.processingPrefix, settings.completedValue, token],
+    args: [
+      String(ttlSeconds),
+      settings.processingPrefix,
+      settings.completedValue,
+      token,
+      repairMissingExpiry ? "1" : "0",
+      String(completedTtlSeconds),
+    ],
     decoder: Decoder.String,
   });
 
@@ -88,7 +100,7 @@ export async function completeIdempotencyKey(
 ): Promise<IdempotencyCompletionResult> {
   validateKey(key);
   validateNonEmpty("token", token);
-  validateTtlSeconds(ttlSeconds);
+  validateTtlSeconds("ttlSeconds", ttlSeconds);
   const settings = normalizeIdempotencyOptions(options);
 
   const result = await settings.client.invokeScript(idempotencyKeyCompleteIfCurrentScript, {
@@ -115,13 +127,9 @@ export async function releaseIdempotencyKey(
   validateNonEmpty("token", token);
   const settings = normalizeIdempotencyOptions(options);
 
-  const result = await settings.client.invokeScript(idempotencyKeyReleaseIfCurrentScript, {
-    keys: [key],
-    args: [processingValue(settings.processingPrefix, token)],
-    decoder: Decoder.String,
+  return await unlinkIfValueMatches(key, processingValue(settings.processingPrefix, token), {
+    client: settings.client,
   });
-
-  return result === 1 || result === 1n;
 }
 
 function normalizeIdempotencyOptions(
@@ -154,8 +162,10 @@ function validateKey(key: string): void {
   validateNonEmpty("key", key);
 }
 
-function validateTtlSeconds(ttlSeconds: number): void {
-  if (ttlSeconds <= 0) throw new Error("ttlSeconds must be greater than 0");
+function validateTtlSeconds(name: string, ttlSeconds: number): void {
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) {
+    throw new Error(`${name} must be a positive safe integer`);
+  }
 }
 
 function validateNonEmpty(name: string, value: string): void {
