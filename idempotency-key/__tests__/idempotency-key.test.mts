@@ -239,7 +239,7 @@ describe("idempotency-key", () => {
     }
   });
 
-  it("requests string decoding for status-returning script calls", async () => {
+  it("requests string decoding for string status script calls", async () => {
     const invokeScript = vi
       .fn<GlideClient["invokeScript"]>()
       .mockResolvedValueOnce("reserved")
@@ -254,9 +254,9 @@ describe("idempotency-key", () => {
     await expect(completeIdempotencyKey("key", "token", 60, { client })).resolves.toBe("completed");
     await expect(releaseIdempotencyKey("key", "token", { client })).resolves.toBe(true);
 
-    for (const call of invokeScript.mock.calls) {
-      expect(call[1]).toMatchObject({ decoder: Decoder.String });
-    }
+    expect(invokeScript.mock.calls[0]![1]).toMatchObject({ decoder: Decoder.String });
+    expect(invokeScript.mock.calls[1]![1]).toMatchObject({ decoder: Decoder.String });
+    expect(invokeScript.mock.calls[2]![1]).not.toHaveProperty("decoder");
   });
 
   it("validates inputs", async () => {

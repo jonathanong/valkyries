@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { cacheValkeyClient } from "../../clients.mts";
 import { unlinkIfValueMatches } from "../../conditional.mts";
-import { Decoder, type GlideClient } from "@valkey/valkey-glide";
+import type { GlideClient } from "@valkey/valkey-glide";
 
 let unique = 0;
 const rand = () => {
@@ -44,7 +44,6 @@ describe("conditional", () => {
     expect(invokeScript).toHaveBeenCalledWith(expect.anything(), {
       keys: ["key"],
       args: ["value"],
-      decoder: Decoder.String,
     });
   });
 

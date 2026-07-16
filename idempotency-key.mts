@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { cacheValkeyClient } from "./clients.mts";
 import { unlinkIfValueMatches } from "./conditional.mts";
 import { loadScript, registerScript } from "./scripts.mts";
+import { stringifyValkeyResult } from "./valkey-result.mts";
 import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
 const DEFAULT_PROCESSING_PREFIX = "processing";
@@ -176,12 +177,4 @@ function validateStoredStateValue(name: string, value: string): void {
   if (SCRIPT_RESULT_VALUES.has(value)) {
     throw new Error(`${name} must not equal a script result sentinel`);
   }
-}
-
-function stringifyValkeyResult(result: unknown): string {
-  if (typeof result === "string") return result;
-  if (typeof result === "number" || typeof result === "bigint" || typeof result === "boolean") {
-    return result.toString();
-  }
-  return JSON.stringify(result) ?? "[unserializable]";
 }
