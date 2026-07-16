@@ -262,7 +262,7 @@ describe("idempotency-key", () => {
   it("validates inputs", async () => {
     await expect(getAndDelete("")).rejects.toThrow("key must not be empty");
     await expect(reserveIdempotencyKey("key", 0)).rejects.toThrow(
-      "ttlSeconds must be a positive safe integer",
+      "ttlSeconds must be greater than 0",
     );
     await expect(reserveIdempotencyKey("key", 60, { token: "" })).rejects.toThrow(
       "token must not be empty",
@@ -286,7 +286,12 @@ describe("idempotency-key", () => {
 
     const invokeScript = vi.fn<GlideClient["invokeScript"]>();
     const client = { invokeScript } as unknown as GlideClient;
-    for (const invalidTtl of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const invalidTtl of [-1, Number.NaN]) {
+      await expect(reserveIdempotencyKey("key", invalidTtl, { client })).rejects.toThrow(
+        "ttlSeconds must be greater than 0",
+      );
+    }
+    for (const invalidTtl of [1.5, Number.POSITIVE_INFINITY]) {
       await expect(reserveIdempotencyKey("key", invalidTtl, { client })).rejects.toThrow(
         "ttlSeconds must be a positive safe integer",
       );
@@ -296,7 +301,7 @@ describe("idempotency-key", () => {
         client,
         repairMissingExpiry: { completedTtlSeconds: 0 },
       }),
-    ).rejects.toThrow("completedTtlSeconds must be a positive safe integer");
+    ).rejects.toThrow("completedTtlSeconds must be greater than 0");
     expect(invokeScript).not.toHaveBeenCalled();
   });
 

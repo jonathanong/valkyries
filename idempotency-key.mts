@@ -164,9 +164,8 @@ function validateKey(key: string): void {
 }
 
 function validateTtlSeconds(name: string, ttlSeconds: number): void {
-  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) {
-    throw new Error(`${name} must be a positive safe integer`);
-  }
+  if (!(ttlSeconds > 0)) throw new Error(`${name} must be greater than 0`);
+  if (!Number.isSafeInteger(ttlSeconds)) throw new Error(`${name} must be a positive safe integer`);
 }
 
 function validateNonEmpty(name: string, value: string): void {

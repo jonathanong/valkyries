@@ -48,6 +48,7 @@ Dynamic config scripts:
 Idempotency key scripts:
 
 - `idempotency-key-complete-if-current.lua`
+- `idempotency-key-release-if-current.lua` (compatibility filename; new code uses conditional unlink)
 - `idempotency-key-reserve.lua`
 
 Conditional operation scripts:
