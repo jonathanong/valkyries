@@ -167,6 +167,30 @@ describe("retryValkeyOperation", () => {
     expect(getCalls()).toBe(3);
   });
 
+  it("unrefs the inter-attempt backoff timer so a pending retry cannot block process exit", async () => {
+    // A benign retry backoff must never keep a process/worker alive on its own — verify the
+    // timer returned by setTimeout is unrefed rather than asserting on real timer behavior.
+    const unref = vi.fn();
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      queueMicrotask(fn);
+      return { unref, ref: vi.fn() } as unknown as NodeJS.Timeout;
+    }) as typeof setTimeout);
+
+    let attempts = 0;
+    const fn = () => {
+      attempts++;
+      if (attempts < 2) return Promise.reject(new Error("Reached maximum inflight requests"));
+      return Promise.resolve("done");
+    };
+
+    const result = await retryValkeyOperation(fn, { delayMs: 50 });
+
+    expect(result).toBe("done");
+    expect(unref).toHaveBeenCalledTimes(1);
+
+    vi.restoreAllMocks();
+  });
+
   it("jitter: uses a delay in [delayMs, delayMs*5] when jitter is true", async () => {
     // Spy on setTimeout to observe the delay value chosen
     const timeouts: number[] = [];
