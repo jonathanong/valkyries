@@ -78,7 +78,14 @@ export async function retryValkeyOperation<T>(
       if (attempt < maxAttempts - 1) {
         const maxJitter = Math.floor(delayMs * 4);
         const waitMs = jitter && maxJitter > 0 ? delayMs + randomInt(maxJitter + 1) : delayMs;
-        await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+        // Unref the backoff timer: a pending retry is benign background work and must never
+        // keep a process (or, notably, a test-runner worker) alive on its own. During normal
+        // operation the process stays alive via other refed handles (e.g. the HTTP server); on
+        // shutdown, an unrefed retry correctly stops blocking exit instead of forcing a timeout.
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, waitMs);
+          timer?.unref?.();
+        });
       }
     }
   }
