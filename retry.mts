@@ -84,7 +84,7 @@ export async function retryValkeyOperation<T>(
         // shutdown, an unrefed retry correctly stops blocking exit instead of forcing a timeout.
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, waitMs);
-          timer.unref?.();
+          timer?.unref?.();
         });
       }
     }

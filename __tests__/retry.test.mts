@@ -176,19 +176,21 @@ describe("retryValkeyOperation", () => {
       return { unref, ref: vi.fn() } as unknown as NodeJS.Timeout;
     }) as typeof setTimeout);
 
-    let attempts = 0;
-    const fn = () => {
-      attempts++;
-      if (attempts < 2) return Promise.reject(new Error("Reached maximum inflight requests"));
-      return Promise.resolve("done");
-    };
+    try {
+      let attempts = 0;
+      const fn = () => {
+        attempts++;
+        if (attempts < 2) return Promise.reject(new Error("Reached maximum inflight requests"));
+        return Promise.resolve("done");
+      };
 
-    const result = await retryValkeyOperation(fn, { delayMs: 50 });
+      const result = await retryValkeyOperation(fn, { delayMs: 50 });
 
-    expect(result).toBe("done");
-    expect(unref).toHaveBeenCalledTimes(1);
-
-    vi.restoreAllMocks();
+      expect(result).toBe("done");
+      expect(unref).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("jitter: uses a delay in [delayMs, delayMs*5] when jitter is true", async () => {
