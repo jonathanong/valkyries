@@ -2,7 +2,13 @@ import { dynamicConfigValkeyClient } from "../clients.mts";
 import { loadScript, registerScript } from "../scripts.mts";
 import type { DynamicConfigField, DynamicConfigFieldType } from "../types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
+import { retrySaturationError } from "../retry.mts";
 import { parseField, stringifyField } from "./fields.mts";
+
+export type DynamicConfigInflightRetryOptions = {
+  attempts: number;
+  delayMs: number;
+};
 
 export const dynamicConfigSetFieldsScript = registerScript(
   loadScript("dynamic-config-set-fields.lua", new URL("../", import.meta.url)),
@@ -11,8 +17,9 @@ export const dynamicConfigSetFieldsScript = registerScript(
 export async function getDynamicConfigFieldsMap(
   key: string,
   client: GlideClient = dynamicConfigValkeyClient,
+  retryOptions?: DynamicConfigInflightRetryOptions,
 ): Promise<Record<string, { field: unknown; value: unknown }>> {
-  const fields = await client.hgetall(key);
+  const fields = await retrySaturationError(() => client.hgetall(key), retryOptions);
   const fieldsMap: Record<string, { field: unknown; value: unknown }> = {};
   if (Array.isArray(fields)) {
     for (const entry of fields) {
@@ -64,13 +71,18 @@ export async function writeDynamicConfigFields({
   key,
   args,
   client = dynamicConfigValkeyClient,
+  retryOptions,
 }: {
   key: string;
   args: string[];
   client?: GlideClient;
+  retryOptions?: DynamicConfigInflightRetryOptions;
 }) {
   if (args.length === 0) return;
-  await client.invokeScript(dynamicConfigSetFieldsScript, { keys: [key], args });
+  await retrySaturationError(
+    () => client.invokeScript(dynamicConfigSetFieldsScript, { keys: [key], args }),
+    retryOptions,
+  );
 }
 
 export function buildMissingDefaultWrites({

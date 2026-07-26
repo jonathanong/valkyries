@@ -41,6 +41,8 @@ type DynamicConfigOptions = {
   fieldTypes: Record<string, "string" | "number" | "boolean">;
   defaultFields: Record<string, string | number | boolean>;
   client?: GlideClient;
+  inflightRetryAttempts?: number;
+  inflightRetryDelayMs?: number;
 };
 ```
 
@@ -49,6 +51,10 @@ type DynamicConfigOptions = {
 - `fieldTypes`: allowed fields and primitive types.
 - `defaultFields`: default values written when fields are missing.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package dynamic-config client.
+- `inflightRetryAttempts`: attempts for a locally rejected, inflight-saturated Valkey command. Defaults to `VALKEY_INFLIGHT_RETRY_ATTEMPTS` or `3`.
+- `inflightRetryDelayMs`: minimum backoff between saturation retries. Defaults to `VALKEY_INFLIGHT_RETRY_DELAY_MS` or `1000`; retry delays are jittered up to five times this value.
+
+Only Glide's local `Reached maximum inflight requests` rejection is retried. Other Valkey errors are returned immediately; a failed refresh remains eligible for the next refresh interval, and failed writes leave local fields unchanged.
 
 The constructor starts initialization immediately. Call `waitForInitialization()` before reading fields during startup.
 

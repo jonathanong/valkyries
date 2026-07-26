@@ -1,6 +1,7 @@
 import type { ValkeyBloomFilterOptions } from "./types.mts";
 import assert from "node:assert";
 import { cacheValkeyClient } from "./clients.mts";
+import { config } from "./config.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 import {
   deleteBloomFilter,
@@ -24,6 +25,8 @@ export class ValkeyBloomFilter {
   private expansionRate: number;
   private batchSize: number;
   private readonly concurrencyLimit: number;
+  private readonly inflightRetryAttempts: number;
+  private readonly inflightRetryDelayMs: number;
   private liveKey: string;
   private buildingKey: string;
   private client: GlideClient;
@@ -37,6 +40,8 @@ export class ValkeyBloomFilter {
       batchSize = 10_000,
       concurrencyLimit = 16,
       client = cacheValkeyClient,
+      inflightRetryAttempts,
+      inflightRetryDelayMs,
     } = options;
 
     assert(name && typeof name === "string", "name must be a non-empty string");
@@ -52,6 +57,8 @@ export class ValkeyBloomFilter {
     this.expansionRate = expansionRate;
     this.batchSize = batchSize;
     this.concurrencyLimit = concurrencyLimit;
+    this.inflightRetryAttempts = inflightRetryAttempts ?? config.inflight_retry_attempts;
+    this.inflightRetryDelayMs = inflightRetryDelayMs ?? config.inflight_retry_delay_ms;
     this.liveKey = `bloom-filter:${name}`;
     this.buildingKey = `bloom-filter:${name}:building`;
     this.client = client;
@@ -194,6 +201,8 @@ export class ValkeyBloomFilter {
       expansionRate: this.expansionRate,
       batchSize: this.batchSize,
       concurrencyLimit: this.concurrencyLimit,
+      inflightRetryAttempts: this.inflightRetryAttempts,
+      inflightRetryDelayMs: this.inflightRetryDelayMs,
       liveKey: this.liveKey,
       buildingKey: this.buildingKey,
       client: this.client,

@@ -1,5 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
+import { retrySaturationError } from "../retry.mts";
 import { luaBatchSize } from "./batching.mts";
 import {
   bloomFilterExistsIfReadyScript,
@@ -12,10 +13,7 @@ import { normalizeBloomCheckResult } from "./results.mts";
 
 export async function exists(state: BloomFilterState, item: string): Promise<boolean | null> {
   try {
-    const result = await state.client.invokeScript(bloomFilterExistsScript, {
-      keys: [state.liveKey],
-      args: [item],
-    });
+    const result = await invokeScript(state, bloomFilterExistsScript, [state.liveKey], [item]);
     if (result === -1 || result === -1n) {
       emitValkeyEvent("bloom-filter:exists", { name: state.name, item, result: null });
       return null;
@@ -38,10 +36,7 @@ export async function mexists(
   try {
     const batchResults = await Promise.all(
       batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsScript, {
-          keys: [state.liveKey],
-          args: batchItems,
-        }),
+        invokeScript(state, bloomFilterMexistsScript, [state.liveKey], batchItems),
       ),
     );
     const boolResults = normalizeBatchedResults(batches, batchResults);
@@ -59,10 +54,12 @@ export async function existsIfReady(
   item: string,
 ): Promise<boolean | null> {
   try {
-    const result = await state.client.invokeScript(bloomFilterExistsIfReadyScript, {
-      keys: [readyKey, state.liveKey],
-      args: [item],
-    });
+    const result = await invokeScript(
+      state,
+      bloomFilterExistsIfReadyScript,
+      [readyKey, state.liveKey],
+      [item],
+    );
     const normalized = normalizeBloomCheckResult(result);
     emitValkeyEvent("bloom-filter:exists", { name: state.name, item, result: normalized });
     return normalized;
@@ -82,10 +79,7 @@ export async function mexistsIfReady(
   try {
     const batchResults = await Promise.all(
       batches.map((batchItems) =>
-        state.client.invokeScript(bloomFilterMexistsIfReadyScript, {
-          keys: [readyKey, state.liveKey],
-          args: batchItems,
-        }),
+        invokeScript(state, bloomFilterMexistsIfReadyScript, [readyKey, state.liveKey], batchItems),
       ),
     );
     const normalizedResults = normalizeBatchedResults(batches, batchResults);
@@ -99,6 +93,18 @@ export async function mexistsIfReady(
     handleValkeyError(error as Error);
     return items.map(() => null);
   }
+}
+
+function invokeScript(
+  state: BloomFilterState,
+  script: Parameters<BloomFilterState["client"]["invokeScript"]>[0],
+  keys: string[],
+  args: string[],
+): Promise<unknown> {
+  return retrySaturationError(() => state.client.invokeScript(script, { keys, args }), {
+    attempts: state.inflightRetryAttempts,
+    delayMs: state.inflightRetryDelayMs,
+  });
 }
 
 function buildBatches(items: string[], batchSize: number): string[][] {

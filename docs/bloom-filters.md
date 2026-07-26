@@ -41,6 +41,8 @@ type ValkeyBloomFilterOptions = {
   batchSize?: number;
   concurrencyLimit?: number;
   expansionRate?: number;
+  inflightRetryAttempts?: number;
+  inflightRetryDelayMs?: number;
   client?: GlideClient;
 };
 ```
@@ -51,6 +53,8 @@ type ValkeyBloomFilterOptions = {
 - `batchSize`: write/read chunk size. Defaults to `10_000`; Lua paths clamp large chunks internally.
 - `concurrencyLimit`: maximum number of write chunks in flight at once. Defaults to `16`.
 - `expansionRate`: Bloom filter expansion rate. Defaults to `2`.
+- `inflightRetryAttempts`: maximum attempts for a locally rejected, saturated Valkey request. Defaults to `VALKEY_INFLIGHT_RETRY_ATTEMPTS` or `3`.
+- `inflightRetryDelayMs`: minimum delay between saturation retry attempts. Defaults to `VALKEY_INFLIGHT_RETRY_DELAY_MS` or `1000`; actual retry delays are jittered up to five times this value.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package cache client.
 
 The constructor throws when `name` is empty, `capacity` is not positive, `errorRate` is not between `0` and `1`, `expansionRate` is not positive, `batchSize` is not positive, or `concurrencyLimit` is not positive.
