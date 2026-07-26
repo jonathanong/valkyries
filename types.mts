@@ -144,6 +144,17 @@ export type DynamicConfigOptions = {
   defaultFields: Record<string, DynamicConfigField>;
   /** Optional Valkey client. Defaults to the package dynamic config client. */
   client?: GlideClient;
+  /**
+   * Maximum number of retry attempts on inflight-saturation errors
+   * (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   */
+  inflightRetryAttempts?: number;
+  /**
+   * Minimum delay in milliseconds between saturation-retry attempts
+   * (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5].
+   */
+  inflightRetryDelayMs?: number;
 };
 
 export type ValkeyBloomFilterOptions = {
@@ -161,4 +172,15 @@ export type ValkeyBloomFilterOptions = {
   expansionRate?: number;
   /** Optional Valkey client. Defaults to the package cache client. */
   client?: GlideClient;
+  /**
+   * Maximum number of retry attempts on inflight-saturation errors
+   * (default: VALKEY_INFLIGHT_RETRY_ATTEMPTS env or 3).
+   */
+  inflightRetryAttempts?: number;
+  /**
+   * Minimum delay in milliseconds between saturation-retry attempts
+   * (default: VALKEY_INFLIGHT_RETRY_DELAY_MS env or 1000).
+   * Actual delay is jittered in [delayMs, delayMs * 5].
+   */
+  inflightRetryDelayMs?: number;
 };

@@ -7,6 +7,7 @@ import {
 import type { GlideClient, PubSubMsg } from "@valkey/valkey-glide";
 import type { DynamicConfigOptions, DynamicConfigField, DynamicConfigFieldType } from "./types.mts";
 import { handleValkeyError } from "./errors.mts";
+import { config } from "./config.mts";
 import {
   applyFieldsFromMap,
   buildMissingDefaultWrites,
@@ -37,6 +38,8 @@ export class DynamicConfig {
     defaultValue: DynamicConfigField;
   }[];
   private client: GlideClient;
+  private inflightRetryAttempts: number;
+  private inflightRetryDelayMs: number;
   private closed: boolean = false;
   private lastRefresh: number = 0;
   private isRefreshing: boolean = false;
@@ -50,6 +53,8 @@ export class DynamicConfig {
     this.fieldTypes = options.fieldTypes;
     this.defaultFields = options.defaultFields;
     this.client = options.client ?? dynamicConfigValkeyClient;
+    this.inflightRetryAttempts = options.inflightRetryAttempts ?? config.inflight_retry_attempts;
+    this.inflightRetryDelayMs = options.inflightRetryDelayMs ?? config.inflight_retry_delay_ms;
     this.fields = new Map();
 
     const keys = Object.keys(this.fieldTypes);
@@ -84,7 +89,12 @@ export class DynamicConfig {
       fieldsMap,
       fieldsConfig: this.fieldsConfig,
     });
-    await writeDynamicConfigFields({ key: this.key, args: writeArgs, client: this.client });
+    await writeDynamicConfigFields({
+      key: this.key,
+      args: writeArgs,
+      client: this.client,
+      retryOptions: this.inflightRetryOptions,
+    });
 
     // Keep identity stable for callers that captured `fields` by reference.
     this.fields.clear();
@@ -112,7 +122,14 @@ export class DynamicConfig {
   parseField = parseField;
 
   private getFieldsMap(): Promise<Record<string, { field: unknown; value: unknown }>> {
-    return getDynamicConfigFieldsMap(this.key, this.client);
+    return getDynamicConfigFieldsMap(this.key, this.client, this.inflightRetryOptions);
+  }
+
+  private get inflightRetryOptions() {
+    return {
+      attempts: this.inflightRetryAttempts,
+      delayMs: this.inflightRetryDelayMs,
+    };
   }
 
   private async applyFieldsFromMap(
@@ -234,7 +251,12 @@ export class DynamicConfig {
       args.push(name, stringifyField(type, processedValue));
     }
 
-    await writeDynamicConfigFields({ key: this.key, args, client: this.client });
+    await writeDynamicConfigFields({
+      key: this.key,
+      args,
+      client: this.client,
+      retryOptions: this.inflightRetryOptions,
+    });
 
     for (let i = 0; i < toApplyNames.length; i += 1) {
       this.fields.set(toApplyNames[i], toApplyValues[i]);

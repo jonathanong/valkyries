@@ -1,5 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
+import { retrySaturationError } from "../retry.mts";
 import { chunkItems, concurrentSlices } from "./batching.mts";
 import { bloomFilterEnsureExistsScript, bloomFilterReserveScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
@@ -30,7 +31,12 @@ async function processBatch(state: BloomFilterState, batch: string[]): Promise<v
   // potentially cleaning up or throwing, ensuring no "late" writes recreate the buildingKey.
   for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
     const settled = await Promise.allSettled(
-      slice.map((chunk) => state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk])),
+      slice.map((chunk) =>
+        retrySaturationError(
+          () => state.client.customCommand(["BF.MADD", state.buildingKey, ...chunk]),
+          { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+        ),
+      ),
     );
 
     for (let j = 0; j < settled.length; j++) {
@@ -62,15 +68,26 @@ export async function rebuildFromStream(
   capacityOverride?: number,
 ): Promise<void> {
   const capacityToUse = capacityOverride ?? state.capacity;
-  await state.client.invokeScript(bloomFilterReserveScript, {
-    keys: [state.buildingKey],
-    args: [state.errorRate.toString(), capacityToUse.toString(), state.expansionRate.toString()],
-  });
+  await retrySaturationError(
+    () =>
+      state.client.invokeScript(bloomFilterReserveScript, {
+        keys: [state.buildingKey],
+        args: [
+          state.errorRate.toString(),
+          capacityToUse.toString(),
+          state.expansionRate.toString(),
+        ],
+      }),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
   try {
     for await (const batch of batches) {
       await processBatch(state, batch);
     }
-    await state.client.rename(state.buildingKey, state.liveKey);
+    await retrySaturationError(() => state.client.rename(state.buildingKey, state.liveKey), {
+      attempts: state.inflightRetryAttempts,
+      delayMs: state.inflightRetryDelayMs,
+    });
   } catch (error) {
     await cleanupBuildingKey(state);
     throw error;
@@ -78,37 +95,60 @@ export async function rebuildFromStream(
 }
 
 export async function deleteBloomFilter(state: BloomFilterState): Promise<void> {
-  await state.client.unlink([state.liveKey, state.buildingKey]);
+  await retrySaturationError(() => state.client.unlink([state.liveKey, state.buildingKey]), {
+    attempts: state.inflightRetryAttempts,
+    delayMs: state.inflightRetryDelayMs,
+  });
 }
 
 export async function deleteWithAdditionalKeys(
   state: BloomFilterState,
   additionalKeys: string[],
 ): Promise<void> {
-  await state.client.unlink([state.liveKey, state.buildingKey, ...additionalKeys]);
+  await retrySaturationError(
+    () => state.client.unlink([state.liveKey, state.buildingKey, ...additionalKeys]),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
 }
 
 export async function keyExists(state: BloomFilterState): Promise<boolean> {
-  const result = await state.client.customCommand(["EXISTS", state.liveKey]);
+  const result = await retrySaturationError(
+    () => state.client.customCommand(["EXISTS", state.liveKey]),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
   return result === 1 || result === 1n;
 }
 
 export async function isReady(state: BloomFilterState, readyKey: string): Promise<boolean> {
-  const result = await state.client.customCommand(["EXISTS", readyKey, state.liveKey]);
+  const result = await retrySaturationError(
+    () => state.client.customCommand(["EXISTS", readyKey, state.liveKey]),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
   return result === 2 || result === 2n;
 }
 
 export async function ensureExists(state: BloomFilterState, capacity?: number): Promise<void> {
   const capacityToUse = capacity ?? state.capacity;
-  await state.client.invokeScript(bloomFilterEnsureExistsScript, {
-    keys: [state.liveKey],
-    args: [state.errorRate.toString(), capacityToUse.toString(), state.expansionRate.toString()],
-  });
+  await retrySaturationError(
+    () =>
+      state.client.invokeScript(bloomFilterEnsureExistsScript, {
+        keys: [state.liveKey],
+        args: [
+          state.errorRate.toString(),
+          capacityToUse.toString(),
+          state.expansionRate.toString(),
+        ],
+      }),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
 }
 
 async function cleanupBuildingKey(state: BloomFilterState): Promise<void> {
   try {
-    await state.client.unlink([state.buildingKey]);
+    await retrySaturationError(() => state.client.unlink([state.buildingKey]), {
+      attempts: state.inflightRetryAttempts,
+      delayMs: state.inflightRetryDelayMs,
+    });
   } catch (cleanupError) {
     handleValkeyError(cleanupError as Error);
   }

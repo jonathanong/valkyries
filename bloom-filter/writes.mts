@@ -1,5 +1,6 @@
 import { emitValkeyEvent } from "../events.mts";
 import { handleValkeyError } from "../errors.mts";
+import { retrySaturationError } from "../retry.mts";
 import { chunkItems, concurrentSlices, luaBatchSize } from "./batching.mts";
 import { bloomFilterAddScript } from "./scripts.mts";
 import type { BloomFilterState } from "./types.mts";
@@ -40,14 +41,7 @@ export async function addStream(
     // We must also wait for all in-flight commands in a concurrent set to settle before
     // potentially throwing, ensuring no "late" writes happen after the method returns.
     for (const { start, slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
-      const settled = await Promise.allSettled(
-        slice.map((chunk) =>
-          state.client.invokeScript(bloomFilterAddScript, {
-            keys: [state.liveKey, state.buildingKey],
-            args: chunk,
-          }),
-        ),
-      );
+      const settled = await Promise.allSettled(slice.map((chunk) => invokeAddScript(state, chunk)));
 
       for (let j = 0; j < settled.length; j++) {
         const res = settled[j];
@@ -79,18 +73,29 @@ async function runAddCommands(state: BloomFilterState, items: string[]): Promise
   const chunks = Array.from(chunkItems(items, luaBatchSize(state.batchSize)));
   const results: unknown[] = [];
   for (const { slice } of concurrentSlices(chunks, state.concurrencyLimit)) {
-    results.push(
-      ...(await Promise.all(
-        slice.map((chunk) =>
-          state.client.invokeScript(bloomFilterAddScript, {
-            keys: [state.liveKey, state.buildingKey],
-            args: chunk,
-          }),
-        ),
-      )),
-    );
+    const settled = await Promise.allSettled(slice.map((chunk) => invokeAddScript(state, chunk)));
+    let firstError: unknown;
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        results.push(result.value);
+      } else if (firstError === undefined) {
+        firstError = result.reason;
+      }
+    }
+    if (firstError !== undefined) throw firstError;
   }
   return results;
+}
+
+function invokeAddScript(state: BloomFilterState, items: string[]): Promise<unknown> {
+  return retrySaturationError(
+    () =>
+      state.client.invokeScript(bloomFilterAddScript, {
+        keys: [state.liveKey, state.buildingKey],
+        args: items,
+      }),
+    { attempts: state.inflightRetryAttempts, delayMs: state.inflightRetryDelayMs },
+  );
 }
 
 function wroteFilter(result: unknown): boolean {
