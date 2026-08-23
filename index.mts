@@ -13,6 +13,7 @@ export * from "./errors.mts";
 export * from "./key-normalization.mts";
 export * from "./cache-metrics.mts";
 export * from "./retry.mts";
+export { scanAndUnlinkKeys } from "./delete.mts";
 export type {
   RateLimiterAddAndCheckWindowsOptions,
   RateLimiterOptions,
@@ -24,4 +25,6 @@ export type {
   DynamicConfigField,
   DynamicConfigFieldType,
   DynamicConfigOptions,
+  ScanAndUnlinkKeysOptions,
+  ScanAndUnlinkKeysResult,
 } from "./types.mts";

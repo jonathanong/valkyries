@@ -113,6 +113,24 @@ const cache = new ValkeyCache({ prefix: "custom", ttlSeconds: 60, client });
 
 Call `closeValkeyClients()` to close package-managed clients.
 
+## Scan and Unlink Keys
+
+Use `scanAndUnlinkKeys()` for cancellable, pattern-based cleanup with explicit scan and deletion
+counts:
+
+```ts
+import { scanAndUnlinkKeys } from "valkyries";
+
+const result = await scanAndUnlinkKeys(client, "cache:*", {
+  matches: (key) => Buffer.from(key).toString("utf8").startsWith("cache:users:"),
+  signal: abortController.signal,
+});
+```
+
+The result reports `scannedKeys`, `matchedKeys`, and keys confirmed removed by `UNLINK` as
+`unlinkedKeys`. `SCAN` is non-snapshot, so these counts can include duplicates or omit keys while
+the keyspace changes.
+
 ## Documentation
 
 - [Configuration](docs/configuration.md)

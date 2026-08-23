@@ -1,4 +1,21 @@
 import type { GlideClient } from "@valkey/valkey-glide";
+import type { GlideString } from "@valkey/valkey-glide";
+
+export type ScanAndUnlinkKeysOptions = {
+  /** Stops before or after each SCAN and UNLINK command boundary. */
+  signal?: AbortSignal;
+  /** Selects scanned string or Buffer keys to unlink. Defaults to every scanned key. */
+  matches?: (key: GlideString) => boolean;
+};
+
+export type ScanAndUnlinkKeysResult = {
+  /** Number of keys returned by SCAN, including any duplicates from its non-snapshot iteration. */
+  scannedKeys: number;
+  /** Number of scanned keys accepted by matches. */
+  matchedKeys: number;
+  /** Number of keys confirmed by UNLINK as removed. */
+  unlinkedKeys: number;
+};
 
 export type ValkeyClientsOption = {
   cacheClient?: GlideClient;

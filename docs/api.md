@@ -29,6 +29,7 @@ import {
   getAndDelete,
   reserveIdempotencyKey,
   closeValkeyClients,
+  scanAndUnlinkKeys,
 } from "valkyries";
 ```
 
