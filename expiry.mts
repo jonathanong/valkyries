@@ -1,4 +1,4 @@
-import { Batch, ExpireOptions, type GlideClient } from "@valkey/valkey-glide";
+import { Batch, ExpireOptions, type GlideClient, type GlideString } from "@valkey/valkey-glide";
 import { handleValkeyError } from "./errors.mts";
 import { scanKeyPages, throwIfAborted } from "./scan.mts";
 import type { ExpireKeysWithNoExpiryOptions, ExpireKeysWithNoExpiryResult } from "./types.mts";
@@ -36,25 +36,7 @@ export async function expireKeysWithNoExpiry(
       const keys = scanned.filter(shouldExpire);
       throwIfAborted(signal);
       matchedKeys += keys.length;
-      if (keys.length === 0) continue;
-
-      for (let offset = 0; offset < keys.length; offset += batchSize) {
-        throwIfAborted(signal);
-        const batchKeys = keys.slice(offset, offset + batchSize);
-        const batch = new Batch(false);
-        for (const key of batchKeys) {
-          batch.expire(key, ttl, { expireOption: ExpireOptions.HasNoExpiry });
-        }
-
-        const results = await client.exec(batch, true);
-        throwIfAborted(signal);
-        if (!Array.isArray(results) || results.length !== batchKeys.length) {
-          throw new Error("expireKeysWithNoExpiry: unexpected EXPIRE batch response");
-        }
-        for (const result of results) {
-          if (result === true) expiredKeys += 1;
-        }
-      }
+      expiredKeys += await expireKeys(client, keys, ttl, batchSize, signal);
     }
 
     return { scannedKeys, matchedKeys, expiredKeys };
@@ -63,6 +45,44 @@ export async function expireKeysWithNoExpiry(
     handleValkeyError(error);
     throw error;
   }
+}
+
+async function expireKeys(
+  client: GlideClient,
+  keys: GlideString[],
+  ttl: number,
+  batchSize: number,
+  signal: AbortSignal | undefined,
+): Promise<number> {
+  let expiredKeys = 0;
+  for (let offset = 0; offset < keys.length; offset += batchSize) {
+    expiredKeys += await expireBatch(client, keys.slice(offset, offset + batchSize), ttl, signal);
+  }
+  return expiredKeys;
+}
+
+async function expireBatch(
+  client: GlideClient,
+  keys: GlideString[],
+  ttl: number,
+  signal: AbortSignal | undefined,
+): Promise<number> {
+  throwIfAborted(signal);
+  const batch = new Batch(false);
+  for (const key of keys) {
+    batch.expire(key, ttl, { expireOption: ExpireOptions.HasNoExpiry });
+  }
+
+  const results = await client.exec(batch, true);
+  throwIfAborted(signal);
+  if (!Array.isArray(results) || results.length !== keys.length) {
+    throw new Error("expireKeysWithNoExpiry: unexpected EXPIRE batch response");
+  }
+  let expiredKeys = 0;
+  for (const result of results) {
+    if (result === true) expiredKeys += 1;
+  }
+  return expiredKeys;
 }
 
 function validateExpirySweepOptions(ttl: number, scanCount: number, batchSize: number): void {
