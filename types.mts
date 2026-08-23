@@ -1,5 +1,4 @@
-import type { GlideClient } from "@valkey/valkey-glide";
-import type { GlideString } from "@valkey/valkey-glide";
+import type { GlideClient, GlideString } from "@valkey/valkey-glide";
 
 export type ScanAndUnlinkKeysOptions = {
   /** Stops before or after each SCAN and UNLINK command boundary. */
