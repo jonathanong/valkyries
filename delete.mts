@@ -1,5 +1,5 @@
 import { handleValkeyError } from "./errors.mts";
-import { scanKeyPages, throwIfAborted } from "./scan.mts";
+import { glideStringToString, scanKeyPages, throwIfAborted } from "./scan.mts";
 import type { ScanAndUnlinkKeysOptions, ScanAndUnlinkKeysResult } from "./types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 
@@ -20,7 +20,7 @@ export async function deleteKeysWithLiteralPrefixes(
   if (uniquePrefixes.length === 0) return;
 
   await scanAndUnlinkKeys(client, pattern, {
-    matches: (key) => uniquePrefixes.some((prefix) => keyToString(key).startsWith(prefix)),
+    matches: (key) => uniquePrefixes.some((prefix) => glideStringToString(key).startsWith(prefix)),
   });
 }
 

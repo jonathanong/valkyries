@@ -1,8 +1,4 @@
-import {
-  Batch,
-  ExpireOptions,
-  type GlideClient,
-} from "@valkey/valkey-glide";
+import { Batch, ExpireOptions, type GlideClient } from "@valkey/valkey-glide";
 import { handleValkeyError } from "./errors.mts";
 import { scanKeyPages, throwIfAborted } from "./scan.mts";
 import type { ExpireKeysWithNoExpiryOptions, ExpireKeysWithNoExpiryResult } from "./types.mts";

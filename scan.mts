@@ -20,7 +20,7 @@ export async function* scanKeyPages(
       decoder: Decoder.Bytes,
     });
     throwIfAborted(signal);
-    cursor = keyToString(nextCursor);
+    cursor = glideStringToString(nextCursor);
     yield keys;
   } while (cursor !== "0");
 }
@@ -29,6 +29,6 @@ export function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw signal.reason;
 }
 
-function keyToString(key: GlideString): string {
+export function glideStringToString(key: GlideString): string {
   return typeof key === "string" ? key : Buffer.from(key).toString("utf8");
 }

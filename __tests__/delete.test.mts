@@ -145,6 +145,15 @@ describe("deleteKeysWithPrefix", () => {
     expect(unlinkMock).toHaveBeenCalledWith(["cache:users:1", "cache:topics:1"]);
   });
 
+  it("does not scan when no string prefixes are supplied", async () => {
+    const scan = vi.fn();
+    const client = { scan } as unknown as GlideClient;
+
+    await deleteKeysWithLiteralPrefixes(client, "cache:*", [null] as unknown as string[]);
+
+    expect(scan).not.toHaveBeenCalled();
+  });
+
   it("awaits unlink before scanning the next cursor page", async () => {
     const scanCalls: string[] = [];
     let resolveUnlink: () => void;
