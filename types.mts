@@ -16,6 +16,30 @@ export type ScanAndUnlinkKeysResult = {
   unlinkedKeys: number;
 };
 
+export type ExpireKeysWithNoExpiryOptions = {
+  /** Valkey SCAN pattern for keys to evaluate. */
+  pattern: string;
+  /** TTL in seconds to apply only where the key has no expiry. */
+  ttl: number;
+  /** Selects scanned string or Buffer keys to expire. Defaults to every scanned key. */
+  shouldExpire?: (key: GlideString) => boolean;
+  /** Stops before or after each SCAN and EXPIRE-batch command boundary. */
+  signal?: AbortSignal;
+  /** SCAN COUNT hint. Defaults to 500. */
+  scanCount?: number;
+  /** Maximum number of EXPIRE commands in one non-atomic pipeline. Defaults to 500. */
+  batchSize?: number;
+};
+
+export type ExpireKeysWithNoExpiryResult = {
+  /** Number of keys returned by SCAN, including any duplicates from its non-snapshot iteration. */
+  scannedKeys: number;
+  /** Number of scanned keys accepted by shouldExpire. */
+  matchedKeys: number;
+  /** Number of keys confirmed by EXPIRE NX as newly given a TTL. */
+  expiredKeys: number;
+};
+
 export type ValkeyClientsOption = {
   cacheClient?: GlideClient;
   rateLimiterClient?: GlideClient;

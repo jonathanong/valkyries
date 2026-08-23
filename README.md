@@ -131,6 +131,27 @@ The result reports `scannedKeys`, `matchedKeys`, and keys confirmed removed by `
 `unlinkedKeys`. `SCAN` is non-snapshot, so these counts can include duplicates or omit keys while
 the keyspace changes.
 
+## Expire Keys Without a TTL
+
+Use `expireKeysWithNoExpiry()` to apply a TTL only when matching keys still have no expiry:
+
+```ts
+import { expireKeysWithNoExpiry } from "valkyries";
+
+const result = await expireKeysWithNoExpiry(client, {
+  pattern: "cache:*",
+  ttl: 86_400,
+  shouldExpire: (key) => Buffer.from(key).toString("utf8").startsWith("cache:users:"),
+  signal: abortController.signal,
+  batchSize: 250,
+});
+```
+
+The result reports `scannedKeys`, `matchedKeys`, and `expiredKeys`. The helper uses `EXPIRE NX`,
+so it never replaces a TTL that was added concurrently. `SCAN` is non-snapshot, so counts can
+include duplicates or omit keys while the keyspace changes. `scanCount` is a SCAN hint, while
+`batchSize` independently bounds each EXPIRE pipeline.
+
 ## Documentation
 
 - [Configuration](docs/configuration.md)

@@ -1,7 +1,7 @@
-import { Buffer } from "node:buffer";
 import { handleValkeyError } from "./errors.mts";
+import { scanKeyPages, throwIfAborted } from "./scan.mts";
 import type { ScanAndUnlinkKeysOptions, ScanAndUnlinkKeysResult } from "./types.mts";
-import { Decoder, type GlideClient, type GlideString } from "@valkey/valkey-glide";
+import type { GlideClient } from "@valkey/valkey-glide";
 
 const DEFAULT_SCAN_COUNT = 500;
 
@@ -36,21 +36,14 @@ export async function scanAndUnlinkKeys(
   { signal, matches = () => true }: ScanAndUnlinkKeysOptions = {},
 ): Promise<ScanAndUnlinkKeysResult> {
   try {
-    let cursor = "0";
     let scannedKeys = 0;
     let matchedKeys = 0;
     let unlinkedKeys = 0;
 
-    do {
-      throwIfAborted(signal);
-      const result = await client.scan(cursor, {
-        match: pattern,
-        count: DEFAULT_SCAN_COUNT,
-        decoder: Decoder.Bytes,
-      });
-      throwIfAborted(signal);
-      cursor = keyToString(result[0]);
-      const scanned = result[1] as GlideString[];
+    for await (const scanned of scanKeyPages(client, pattern, {
+      count: DEFAULT_SCAN_COUNT,
+      signal,
+    })) {
       scannedKeys += scanned.length;
       const keys = scanned.filter(matches);
       throwIfAborted(signal);
@@ -61,7 +54,7 @@ export async function scanAndUnlinkKeys(
         unlinkedKeys += await client.unlink(keys);
         throwIfAborted(signal);
       }
-    } while (cursor !== "0");
+    }
 
     return { scannedKeys, matchedKeys, unlinkedKeys };
   } catch (err) {
@@ -69,12 +62,4 @@ export async function scanAndUnlinkKeys(
     handleValkeyError(err);
     throw err;
   }
-}
-
-function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw signal.reason;
-}
-
-function keyToString(key: GlideString): string {
-  return typeof key === "string" ? key : Buffer.from(key).toString("utf8");
 }

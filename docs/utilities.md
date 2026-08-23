@@ -24,6 +24,32 @@ from the keys that exist when the call returns. The optional `signal` is checked
 every SCAN and UNLINK boundary; its exact abort reason is rethrown without reporting it to the
 configured Valkey error handler.
 
+## `expireKeysWithNoExpiry(client, options)`
+
+```ts
+expireKeysWithNoExpiry(
+  client: GlideClient,
+  options: {
+    pattern: string;
+    ttl: number;
+    shouldExpire?: (key: GlideString) => boolean;
+    signal?: AbortSignal;
+    scanCount?: number;
+    batchSize?: number;
+  },
+): Promise<{ scannedKeys: number; matchedKeys: number; expiredKeys: number }>
+```
+
+Scans matching keys and pipelines `EXPIRE NX` commands for every key accepted by `shouldExpire`.
+`EXPIRE NX` atomically sets the TTL only when a key has no existing expiry, so a concurrent TTL
+change is never overwritten. `scanCount` defaults to 500 as a SCAN hint. `batchSize` separately
+defaults to 500 and bounds one non-atomic pipeline.
+
+`SCAN` is non-snapshot: concurrent writes can make counts include duplicates, omit keys, or differ
+from the keys that exist when the call returns. The optional `signal` is checked before and after
+each SCAN and EXPIRE-batch boundary; its exact abort reason is rethrown without reporting it to the
+configured Valkey error handler.
+
 ## `normalizeKey(key)`
 
 ```ts
