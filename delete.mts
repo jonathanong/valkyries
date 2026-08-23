@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { handleValkeyError } from "./errors.mts";
 import type { ScanAndUnlinkKeysOptions, ScanAndUnlinkKeysResult } from "./types.mts";
-import type { GlideClient, GlideString } from "@valkey/valkey-glide";
+import { Decoder, type GlideClient, type GlideString } from "@valkey/valkey-glide";
 
 const DEFAULT_SCAN_COUNT = 500;
 
@@ -43,12 +43,17 @@ export async function scanAndUnlinkKeys(
 
     do {
       throwIfAborted(signal);
-      const result = await client.scan(cursor, { match: pattern, count: DEFAULT_SCAN_COUNT });
+      const result = await client.scan(cursor, {
+        match: pattern,
+        count: DEFAULT_SCAN_COUNT,
+        decoder: Decoder.Bytes,
+      });
       throwIfAborted(signal);
       cursor = keyToString(result[0]);
       const scanned = result[1] as GlideString[];
       scannedKeys += scanned.length;
       const keys = scanned.filter(matches);
+      throwIfAborted(signal);
       matchedKeys += keys.length;
 
       if (keys.length > 0) {
