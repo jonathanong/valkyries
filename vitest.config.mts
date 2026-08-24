@@ -25,6 +25,8 @@ export default defineConfig({
         "retry.mts",
         "utils.mts",
         "clients.mts",
+        "expiry.mts",
+        "scan.mts",
       ],
       exclude: [
         "**/__tests__/**",

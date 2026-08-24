@@ -27,6 +27,7 @@ describe("public api", () => {
     expect(api.scanAndUnlinkKeys).toBeTypeOf("function");
     expect(api).not.toHaveProperty("deleteKeysWithPrefix");
     expect(api).not.toHaveProperty("deleteKeysWithLiteralPrefixes");
+    expect(api.expireKeysWithNoExpiry).toBeTypeOf("function");
   });
 
   it("normalizes keys", () => {
