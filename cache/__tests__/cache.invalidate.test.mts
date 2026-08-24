@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { GlideClient } from "@valkey/valkey-glide";
+import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 import { ValkeyCache } from "../../cache.mts";
 import { valkeyEvents } from "../../events.mts";
 
@@ -25,7 +25,11 @@ describe("ValkeyCache.invalidateMany", () => {
     }
 
     expect(scan).toHaveBeenCalledOnce();
-    expect(scan).toHaveBeenCalledWith("0", { match: "cache:*", count: 500 });
+    expect(scan).toHaveBeenCalledWith("0", {
+      match: "cache:*",
+      count: 500,
+      decoder: Decoder.Bytes,
+    });
     expect(unlink).toHaveBeenCalledWith([
       "cache:users:1",
       "cache:users:invalidation:{1}",
