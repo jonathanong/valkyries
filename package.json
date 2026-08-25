@@ -32,6 +32,11 @@
       "import": "./dist/cache.mjs",
       "default": "./dist/cache.mjs"
     },
+    "./channel-pubsub": {
+      "types": "./dist/channel-pubsub.d.mts",
+      "import": "./dist/channel-pubsub.mjs",
+      "default": "./dist/channel-pubsub.mjs"
+    },
     "./conditional": {
       "types": "./dist/conditional.d.mts",
       "import": "./dist/conditional.mjs",

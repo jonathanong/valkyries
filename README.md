@@ -88,6 +88,21 @@ await flags.setField("enabled", true);
 
 Dynamic config stores fields in a Valkey hash and publishes changes over pub/sub.
 
+## Channel Pub/Sub
+
+`valkyries/channel-pubsub` provides ephemeral, key-scoped pub/sub with caller-owned client
+configuration and lifecycle. It is not re-exported from the package root.
+
+```ts
+import { createChannelPubSub } from "valkyries/channel-pubsub";
+
+const events = createChannelPubSub<{ status: string }>("exports", {
+  clientConfig: { addresses: [{ host: "localhost", port: 6379 }] },
+});
+```
+
+See [Channel pub/sub](docs/channel-pubsub.md) for lifecycle and error-handling details.
+
 ## Rate Limiter
 
 ```ts
@@ -160,6 +175,7 @@ include duplicates or omit keys while the keyspace changes. `scanCount` is a SCA
 - [Cache](docs/cache.md)
 - [Bloom filters](docs/bloom-filters.md)
 - [Dynamic config](docs/dynamic-config.md)
+- [Channel pub/sub](docs/channel-pubsub.md)
 - [Rate limiter](docs/rate-limiter.md)
 - [Idempotency keys](docs/idempotency-key.md)
 - [Conditional operations](docs/conditional-operations.md)
