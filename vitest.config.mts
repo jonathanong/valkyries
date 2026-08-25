@@ -27,6 +27,8 @@ export default defineConfig({
         "clients.mts",
         "expiry.mts",
         "scan.mts",
+        "channel-pubsub.mts",
+        "channel-pubsub-internals.mts",
       ],
       exclude: [
         "**/__tests__/**",

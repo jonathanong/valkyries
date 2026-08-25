@@ -3,6 +3,7 @@ import * as api from "../index.mts";
 import { setValkeyErrorHandler, handleValkeyError } from "../errors.mts";
 import { emitValkeyEvent, valkeyEvents } from "../events.mts";
 import { normalizeKey } from "../key-normalization.mts";
+import * as channelPubSub from "../channel-pubsub.mts";
 
 describe("public api", () => {
   it("exports the package surface", () => {
@@ -28,6 +29,8 @@ describe("public api", () => {
     expect(api).not.toHaveProperty("deleteKeysWithPrefix");
     expect(api).not.toHaveProperty("deleteKeysWithLiteralPrefixes");
     expect(api.expireKeysWithNoExpiry).toBeTypeOf("function");
+    expect(api).not.toHaveProperty("createChannelPubSub");
+    expect(channelPubSub.createChannelPubSub).toBeTypeOf("function");
   });
 
   it("normalizes keys", () => {
