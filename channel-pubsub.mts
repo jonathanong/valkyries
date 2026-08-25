@@ -1,38 +1,26 @@
 import { GlideClient, GlideClientConfiguration, type PubSubMsg } from "@valkey/valkey-glide";
 import {
   assertChannelPart,
+  closeSubscriberClient,
   decrement,
   deliver,
   glideStringToString,
+  removePending,
   removeHandler,
-  toError,
+  reportError,
 } from "./channel-pubsub-internals.mts";
+import type {
+  ChannelPubSub,
+  ChannelPubSubHandler,
+  ChannelPubSubOptions,
+  ChannelSubscription,
+} from "./channel-pubsub-types.mts";
 
-type GlideClientConfig = Parameters<typeof GlideClient.createClient>[0];
-type MessageHandler<T> = (value: T) => void;
-type PendingSubscription<T> = { buffer: T[] };
-
-export type ChannelSubscription<T> = {
-  setHandler(handler: MessageHandler<T> | null): void;
-  close(): Promise<void>;
-};
-
-export type ChannelPubSub<T> = {
-  publish(key: string, value: T): Promise<void>;
-  subscribe(key: string): Promise<ChannelSubscription<T>>;
-  closeSubscriber(): Promise<void>;
-  close(): Promise<void>;
-};
-
-export type ChannelPubSubOptions<T> = {
-  clientConfig: GlideClientConfig;
-  createClient?: (config: GlideClientConfig) => Promise<GlideClient>;
-  serialize?: (value: T) => string;
-  deserialize?: (value: string) => T;
-  closeSubscriberWhenIdle?: boolean;
-  subscriberCloseTimeoutMs?: number;
-  onError?: (error: Error) => void;
-};
+export type {
+  ChannelPubSub,
+  ChannelPubSubOptions,
+  ChannelSubscription,
+} from "./channel-pubsub-types.mts";
 
 const DEFAULT_CLOSE_TIMEOUT_MS = 5_000;
 
@@ -41,51 +29,54 @@ export function createChannelPubSub<T>(
   options: ChannelPubSubOptions<T>,
 ): ChannelPubSub<T> {
   assertChannelPart("prefix", prefix);
+  if (options.clientConfig.pubsubSubscriptions) {
+    throw new Error("clientConfig cannot include pubsubSubscriptions");
+  }
+  const closeTimeoutMs = options.subscriberCloseTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
+  if (!Number.isSafeInteger(closeTimeoutMs) || closeTimeoutMs <= 0) {
+    throw new Error("subscriberCloseTimeoutMs must be a positive safe integer");
+  }
+  const report = (error: unknown): void => reportError(options.onError, error);
   const serialize = options.serialize ?? ((value: T) => JSON.stringify(value));
   const deserialize = options.deserialize ?? ((value: string) => JSON.parse(value) as T);
   const createClient = options.createClient ?? ((config) => GlideClient.createClient(config));
-  const closeTimeoutMs = options.subscriberCloseTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
-  const report = (error: unknown): void => options.onError?.(toError(error));
-  const channel = (key: string): string => `${prefix}:${key}`;
   const pattern = `${prefix}:*`;
-  const handlers = new Map<string, Set<MessageHandler<T>>>();
-  const pending = new Map<string, Set<PendingSubscription<T>>>();
+  const channel = (key: string): string => `${prefix}:${key}`;
+  const handlers = new Map<string, Set<ChannelPubSubHandler<T>>>();
+  const pending = new Map<string, Set<{ buffer: T[] }>>();
   const counts = new Map<string, number>();
   let publisher: Promise<GlideClient> | undefined;
   let subscriber: Promise<GlideClient> | undefined;
+  let subscriberClose: Promise<void> | undefined;
+  let ownerClose: Promise<void> | undefined;
   let closed = false;
 
   const assertOpen = (): void => {
     if (closed) throw new Error("Channel pub/sub is closed");
   };
   const totalCount = (): number => [...counts.values()].reduce((total, count) => total + count, 0);
-  const removePending = (key: string, state: PendingSubscription<T>): void => {
-    const states = pending.get(key);
-    if (!states) return;
-    states.delete(state);
-    if (states.size === 0) pending.delete(key);
-  };
-  const closeClient = async (client: GlideClient): Promise<void> => {
-    try {
-      await client.punsubscribe(new Set([pattern]), closeTimeoutMs);
-    } catch (error) {
-      report(error);
-    } finally {
-      await Promise.resolve(client.close());
-    }
-  };
-  const closeSubscriber = async (): Promise<void> => {
+  const shutdownSubscriber = (): Promise<void> => {
+    if (subscriberClose) return subscriberClose;
     const current = subscriber;
     subscriber = undefined;
-    if (!current) return;
-    try {
-      await closeClient(await current);
-    } catch (error) {
-      report(error);
-    }
+    if (!current) return Promise.resolve();
+    const closePromise = (async (): Promise<void> => {
+      try {
+        await closeSubscriberClient(await current, pattern, closeTimeoutMs, report);
+      } catch (error) {
+        report(error);
+      }
+    })();
+    subscriberClose = closePromise;
+    void closePromise.finally(() => {
+      subscriberClose = undefined;
+    });
+    return closePromise;
   };
-  const closeSubscriberIfIdle = async (): Promise<void> => {
-    if (options.closeSubscriberWhenIdle && totalCount() === 0) await closeSubscriber();
+  const closeSubscriberIfIdle = (): Promise<void> => {
+    return options.closeSubscriberWhenIdle && totalCount() === 0
+      ? shutdownSubscriber()
+      : Promise.resolve();
   };
   const getPublisher = (): Promise<GlideClient> => {
     publisher ??= createClient(options.clientConfig).catch((error: unknown) => {
@@ -95,14 +86,13 @@ export function createChannelPubSub<T>(
     return publisher;
   };
   const receive = (message: PubSubMsg): void => {
-    const raw = glideStringToString(message.message);
     const messageChannel = glideStringToString(message.channel);
     if (!messageChannel.startsWith(`${prefix}:`)) return;
     const key = messageChannel.slice(prefix.length + 1);
     if (!counts.has(key)) return;
     let value: T;
     try {
-      value = deserialize(raw);
+      value = deserialize(glideStringToString(message.message));
     } catch (error) {
       report(error);
       return;
@@ -110,7 +100,8 @@ export function createChannelPubSub<T>(
     for (const handler of handlers.get(key) ?? []) deliver(handler, value, report);
     for (const state of pending.get(key) ?? []) state.buffer.push(value);
   };
-  const getSubscriber = (): Promise<GlideClient> => {
+  const getSubscriber = async (): Promise<GlideClient> => {
+    if (subscriberClose) await subscriberClose;
     subscriber ??= createClient({
       ...options.clientConfig,
       pubsubSubscriptions: {
@@ -124,7 +115,7 @@ export function createChannelPubSub<T>(
       subscriber = undefined;
       throw error;
     });
-    return subscriber;
+    return await subscriber;
   };
 
   return {
@@ -137,23 +128,28 @@ export function createChannelPubSub<T>(
       assertOpen();
       assertChannelPart("key", key);
       counts.set(key, (counts.get(key) ?? 0) + 1);
-      const state: PendingSubscription<T> = { buffer: [] };
-      let handler: MessageHandler<T> | null = null;
-      let subscriptionClosed = false;
+      const state = { buffer: [] as T[] };
+      let handler: ChannelPubSubHandler<T> | null = null;
+      let closePromise: Promise<void> | undefined;
       let states = pending.get(key);
       if (!states) pending.set(key, (states = new Set()));
       states.add(state);
-      try {
-        await getSubscriber();
-      } catch (error) {
-        removePending(key, state);
+      const rollback = async (): Promise<void> => {
+        removePending(pending, key, state);
+        if (handler) removeHandler(handlers, key, handler);
         decrement(counts, key);
         await closeSubscriberIfIdle();
+      };
+      try {
+        await getSubscriber();
+        if (closed) throw new Error("Channel pub/sub is closed");
+      } catch (error) {
+        await rollback();
         throw error;
       }
       return {
         setHandler(nextHandler): void {
-          if (subscriptionClosed) return;
+          if (closePromise) return;
           if (handler) removeHandler(handlers, key, handler);
           handler = nextHandler;
           if (!nextHandler) {
@@ -162,36 +158,40 @@ export function createChannelPubSub<T>(
             waiting.add(state);
             return;
           }
-          removePending(key, state);
+          removePending(pending, key, state);
           let active = handlers.get(key);
           if (!active) handlers.set(key, (active = new Set()));
           active.add(nextHandler);
           for (const value of state.buffer) deliver(nextHandler, value, report);
           state.buffer = [];
         },
-        async close(): Promise<void> {
-          if (subscriptionClosed) return;
-          subscriptionClosed = true;
-          removePending(key, state);
-          if (handler) removeHandler(handlers, key, handler);
-          decrement(counts, key);
-          await closeSubscriberIfIdle();
+        close(): Promise<void> {
+          closePromise ??= rollback();
+          return closePromise;
         },
       };
     },
-    closeSubscriber,
-    async close(): Promise<void> {
-      if (closed) return;
-      closed = true;
-      await closeSubscriber();
-      const current = publisher;
-      publisher = undefined;
-      if (!current) return;
-      try {
-        await Promise.resolve((await current).close());
-      } catch (error) {
-        report(error);
+    closeSubscriber(): Promise<void> {
+      if (totalCount() > 0) {
+        return Promise.reject(new Error("Cannot close subscriber while subscriptions are active"));
       }
+      return shutdownSubscriber();
+    },
+    close(): Promise<void> {
+      if (ownerClose) return ownerClose;
+      closed = true;
+      ownerClose = (async (): Promise<void> => {
+        await shutdownSubscriber();
+        const current = publisher;
+        publisher = undefined;
+        if (!current) return;
+        try {
+          await Promise.resolve((await current).close());
+        } catch (error) {
+          report(error);
+        }
+      })();
+      return ownerClose;
     },
   };
 }

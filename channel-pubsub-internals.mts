@@ -1,9 +1,16 @@
-import type { GlideString } from "@valkey/valkey-glide";
+import type { GlideClient, GlideString } from "@valkey/valkey-glide";
 
 export function decrement(counts: Map<string, number>, key: string): void {
   const count = (counts.get(key) ?? 1) - 1;
   if (count <= 0) counts.delete(key);
   else counts.set(key, count);
+}
+
+export function removePending<T>(pending: Map<string, Set<T>>, key: string, state: T): void {
+  const states = pending.get(key);
+  if (!states) return;
+  states.delete(state);
+  if (states.size === 0) pending.delete(key);
 }
 
 export function removeHandler<T>(
@@ -19,6 +26,12 @@ export function removeHandler<T>(
 
 export function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+export function reportError(onError: ((error: Error) => void) | undefined, error: unknown): void {
+  try {
+    onError?.(toError(error));
+  } catch {}
 }
 
 export function glideStringToString(value: GlideString): string {
@@ -40,5 +53,24 @@ export function deliver<T>(
     handler(value);
   } catch (error) {
     onError(error);
+  }
+}
+
+export async function closeSubscriberClient(
+  client: GlideClient,
+  pattern: string,
+  timeoutMs: number,
+  report: (error: unknown) => void,
+): Promise<void> {
+  try {
+    await client.punsubscribe(new Set([pattern]), timeoutMs);
+  } catch (error) {
+    report(error);
+  } finally {
+    try {
+      await Promise.resolve(client.close());
+    } catch (error) {
+      report(error);
+    }
   }
 }

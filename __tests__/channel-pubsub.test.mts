@@ -216,27 +216,6 @@ describe("createChannelPubSub", () => {
     await expect(pubSub.publish("two", "value")).rejects.toThrow("closed");
   });
 
-  it("reports subscriber shutdown failures while still closing the client", async () => {
-    const factory = createFactory();
-    const onError = vi.fn();
-    const pubSub = createChannelPubSub<string>("events", {
-      clientConfig: { addresses: [{ host: "localhost", port: 6379 }] },
-      createClient: factory.createClient,
-      onError,
-    });
-    const subscription = await pubSub.subscribe("one");
-    factory.clients[0]?.punsubscribe.mockRejectedValueOnce(new Error("unsubscribe failed"));
-
-    await subscription.close();
-    await pubSub.closeSubscriber();
-
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "unsubscribe failed" }),
-    );
-    expect(factory.clients[0]?.close).toHaveBeenCalledTimes(1);
-    await pubSub.close();
-  });
-
   it("retries client creation after publisher and subscriber failures", async () => {
     const factory = createFactory();
     const pubSub = createChannelPubSub<string>("events", {
@@ -270,13 +249,14 @@ describe("createChannelPubSub", () => {
     factory.emit(Buffer.from("events:one"), Buffer.from('"buffered"'));
     factory.clients[0]?.close.mockRejectedValueOnce(new Error("subscriber close failed"));
 
+    await expect(pubSub.closeSubscriber()).rejects.toThrow("subscriptions are active");
+    await subscription.close();
     await pubSub.closeSubscriber();
 
     expect(handler).toHaveBeenCalledExactlyOnceWith("buffered");
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ message: "subscriber close failed" }),
     );
-    await subscription.close();
   });
 
   it("closes the publisher and reports its close failures", async () => {

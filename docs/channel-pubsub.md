@@ -28,11 +28,15 @@ creation, for example when an application injects clients in tests. `serialize` 
 default to JSON. `onError` receives codec, handler, and subscriber-shutdown failures; publish and
 initial subscriber-connection failures reject their calling promise.
 
+`clientConfig` must not include `pubsubSubscriptions`; this API owns the subscriber's pattern and
+callback. `onError` failures are contained so consumer and cleanup isolation is preserved.
+
 Prefixes and keys must be non-empty and cannot contain Valkey glob characters (`?`, `*`, `[`, `]`,
 or `\`). This prevents a prefix from widening the subscriber pattern unintentionally.
 
 `closeSubscriberWhenIdle` closes the subscriber when the final subscription closes. Set
-`subscriberCloseTimeoutMs` to bound its `PUNSUBSCRIBE` request; it defaults to `5000`.
+`subscriberCloseTimeoutMs` to a positive safe integer to bound its `PUNSUBSCRIBE` request; it
+defaults to `5000`.
 
 ## Use and close
 
@@ -49,6 +53,7 @@ Multiple subscriptions for one key each receive the message. Calling `setHandler
 previous handler. Both subscription `close()` and owner `close()` are idempotent. Owner `close()`
 also closes the lazy publisher; future `publish()` and `subscribe()` calls reject.
 
-`closeSubscriber()` closes only the current subscriber connection. Use it for explicit connection
-lifecycle management; applications with live subscriptions should recreate their subscription
-connection before expecting more deliveries.
+`closeSubscriber()` closes only an idle subscriber connection. It rejects while subscriptions are
+active, preventing live handles from silently losing delivery. `close()` is the explicit owner
+shutdown operation and closes active subscriptions' connection safely; it coalesces concurrent
+callers until cleanup completes.
