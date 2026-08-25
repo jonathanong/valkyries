@@ -1,6 +1,6 @@
 {
   "name": "valkyries",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Valkey utilities for caches, bloom filters, dynamic configuration, and rate limiting.",
   "homepage": "https://github.com/jonathanong/valkyries#readme",
   "bugs": {
