@@ -4,10 +4,12 @@ import {
   closeSubscriberClient,
   decrement,
   deliver,
+  getOrCreateSet,
   glideStringToString,
   removePending,
   removeHandler,
   reportError,
+  serializeForPublish,
 } from "./channel-pubsub-internals.mts";
 import type {
   ChannelPubSub,
@@ -22,8 +24,6 @@ export type {
   ChannelSubscription,
 } from "./channel-pubsub-types.mts";
 
-const DEFAULT_CLOSE_TIMEOUT_MS = 5_000;
-
 export function createChannelPubSub<T>(
   prefix: string,
   options: ChannelPubSubOptions<T>,
@@ -32,7 +32,7 @@ export function createChannelPubSub<T>(
   if (options.clientConfig.pubsubSubscriptions) {
     throw new Error("clientConfig cannot include pubsubSubscriptions");
   }
-  const closeTimeoutMs = options.subscriberCloseTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
+  const closeTimeoutMs = options.subscriberCloseTimeoutMs ?? 5_000;
   if (!Number.isSafeInteger(closeTimeoutMs) || closeTimeoutMs <= 0) {
     throw new Error("subscriberCloseTimeoutMs must be a positive safe integer");
   }
@@ -41,8 +41,7 @@ export function createChannelPubSub<T>(
   const deserialize = options.deserialize ?? ((value: string) => JSON.parse(value) as T);
   const createClient = options.createClient ?? ((config) => GlideClient.createClient(config));
   const pattern = `${prefix}:*`;
-  const channel = (key: string): string => `${prefix}:${key}`;
-  const handlers = new Map<string, Set<ChannelPubSubHandler<T>>>();
+  const handlers = new Map<string, Set<{ handler: ChannelPubSubHandler<T> }>>();
   const pending = new Map<string, Set<{ buffer: T[] }>>();
   const counts = new Map<string, number>();
   let publisher: Promise<GlideClient> | undefined;
@@ -97,11 +96,13 @@ export function createChannelPubSub<T>(
       report(error);
       return;
     }
-    for (const handler of handlers.get(key) ?? []) deliver(handler, value, report);
+    const currentHandlers = new Set(handlers.get(key));
+    for (const entry of currentHandlers) deliver(entry.handler, value, report);
     for (const state of pending.get(key) ?? []) state.buffer.push(value);
   };
   const getSubscriber = async (): Promise<GlideClient> => {
     if (subscriberClose) await subscriberClose;
+    assertOpen();
     subscriber ??= createClient({
       ...options.clientConfig,
       pubsubSubscriptions: {
@@ -122,18 +123,18 @@ export function createChannelPubSub<T>(
     async publish(key, value): Promise<void> {
       assertOpen();
       assertChannelPart("key", key);
-      await (await getPublisher()).publish(serialize(value), channel(key));
+      await (
+        await getPublisher()
+      ).publish(serializeForPublish(serialize, value, report), `${prefix}:${key}`);
     },
     async subscribe(key): Promise<ChannelSubscription<T>> {
       assertOpen();
       assertChannelPart("key", key);
       counts.set(key, (counts.get(key) ?? 0) + 1);
       const state = { buffer: [] as T[] };
-      let handler: ChannelPubSubHandler<T> | null = null;
+      let handler: { handler: ChannelPubSubHandler<T> } | undefined;
       let closePromise: Promise<void> | undefined;
-      let states = pending.get(key);
-      if (!states) pending.set(key, (states = new Set()));
-      states.add(state);
+      getOrCreateSet(pending, key).add(state);
       const rollback = async (): Promise<void> => {
         removePending(pending, key, state);
         if (handler) removeHandler(handlers, key, handler);
@@ -151,17 +152,14 @@ export function createChannelPubSub<T>(
         setHandler(nextHandler): void {
           if (closePromise) return;
           if (handler) removeHandler(handlers, key, handler);
-          handler = nextHandler;
           if (!nextHandler) {
-            let waiting = pending.get(key);
-            if (!waiting) pending.set(key, (waiting = new Set()));
-            waiting.add(state);
+            handler = undefined;
+            getOrCreateSet(pending, key).add(state);
             return;
           }
           removePending(pending, key, state);
-          let active = handlers.get(key);
-          if (!active) handlers.set(key, (active = new Set()));
-          active.add(nextHandler);
+          handler = { handler: nextHandler };
+          getOrCreateSet(handlers, key).add(handler);
           for (const value of state.buffer) deliver(nextHandler, value, report);
           state.buffer = [];
         },

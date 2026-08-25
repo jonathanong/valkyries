@@ -13,15 +13,32 @@ export function removePending<T>(pending: Map<string, Set<T>>, key: string, stat
   if (states.size === 0) pending.delete(key);
 }
 
-export function removeHandler<T>(
-  handlers: Map<string, Set<(value: T) => void>>,
-  key: string,
-  handler: (value: T) => void,
-): void {
+export function getOrCreateSet<T>(map: Map<string, Set<T>>, key: string): Set<T> {
+  const existing = map.get(key);
+  if (existing) return existing;
+  const created = new Set<T>();
+  map.set(key, created);
+  return created;
+}
+
+export function removeHandler<T>(handlers: Map<string, Set<T>>, key: string, handler: T): void {
   const active = handlers.get(key);
   if (!active) return;
   active.delete(handler);
   if (active.size === 0) handlers.delete(key);
+}
+
+export function serializeForPublish<T>(
+  serialize: (value: T) => string,
+  value: T,
+  report: (error: unknown) => void,
+): string {
+  try {
+    return serialize(value);
+  } catch (error) {
+    report(error);
+    throw error;
+  }
 }
 
 export function toError(error: unknown): Error {

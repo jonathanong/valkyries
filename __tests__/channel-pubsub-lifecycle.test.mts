@@ -105,6 +105,83 @@ describe("channel pub/sub lifecycle", () => {
     await nextSubscription.close();
   });
 
+  it("does not create a replacement subscriber after owner close while waiting", async () => {
+    const firstClose = deferred<void>();
+    const first = createClient({ punsubscribe: vi.fn(() => firstClose.promise) });
+    const createClientFn = vi
+      .fn<() => Promise<GlideClient>>()
+      .mockResolvedValue(first as unknown as GlideClient);
+    const pubSub = createChannelPubSub<string>("events", {
+      clientConfig: config,
+      createClient: createClientFn,
+      closeSubscriberWhenIdle: true,
+    });
+    const firstSubscription = await pubSub.subscribe("one");
+    const firstSubscriptionClose = firstSubscription.close();
+    const subscribing = pubSub.subscribe("two");
+    const closing = pubSub.close();
+
+    firstClose.resolve();
+    await firstSubscriptionClose;
+    await expect(subscribing).rejects.toThrow("closed");
+    await closing;
+    expect(createClientFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps callback identity per subscription and snapshots handler delivery", async () => {
+    let callback: ((message: { channel: string; message: string }) => void) | undefined;
+    const client = createClient();
+    const createClientFn = vi.fn(async (options: Record<string, unknown>) => {
+      callback = (options.pubsubSubscriptions as { callback: typeof callback }).callback;
+      return client as unknown as GlideClient;
+    });
+    const pubSub = createChannelPubSub<string>("events", {
+      clientConfig: config,
+      createClient: createClientFn as never,
+    });
+    const first = await pubSub.subscribe("one");
+    const second = await pubSub.subscribe("one");
+    const shared = vi.fn();
+    first.setHandler(shared);
+    second.setHandler(shared);
+
+    callback?.({ channel: "events:one", message: '"shared"' });
+    await first.close();
+    callback?.({ channel: "events:one", message: '"remaining"' });
+
+    expect(shared).toHaveBeenNthCalledWith(1, "shared");
+    expect(shared).toHaveBeenNthCalledWith(2, "shared");
+    expect(shared).toHaveBeenNthCalledWith(3, "remaining");
+
+    const replacement = vi.fn();
+    const original = vi.fn();
+    second.setHandler((value) => {
+      second.setHandler(replacement);
+      original(value);
+    });
+    callback?.({ channel: "events:one", message: '"current"' });
+    callback?.({ channel: "events:one", message: '"next"' });
+
+    expect(original).toHaveBeenCalledExactlyOnceWith("current");
+    expect(replacement).toHaveBeenCalledExactlyOnceWith("next");
+    await second.close();
+  });
+
+  it("reports serializer failures while rejecting publish", async () => {
+    const onError = vi.fn();
+    const pubSub = createChannelPubSub<string>("events", {
+      clientConfig: config,
+      createClient: vi.fn(async () => createClient() as unknown as GlideClient),
+      serialize: () => {
+        throw new Error("serialize failed");
+      },
+      onError,
+    });
+
+    await expect(pubSub.publish("one", "value")).rejects.toThrow("serialize failed");
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "serialize failed" }));
+  });
+
   it("contains a subscriber connection failure during owner shutdown", async () => {
     const pendingClient = deferred<GlideClient>();
     const onError = vi.fn();
