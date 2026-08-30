@@ -84,7 +84,7 @@
     "@types/node": "^26.1.0",
     "@vitest/coverage-v8": "^4.1.6",
     "github-actionlint": "^1.7.12",
-    "oxfmt": "^0.63.0",
+    "oxfmt": "^0.64.0",
     "oxlint": "^1.65.0",
     "oxlint-tsgolint": "^7.0.2001",
     "tsx": "^4.22.1",
