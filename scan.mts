@@ -7,7 +7,7 @@ type ScanKeyPagesOptions = {
 };
 
 export async function* scanKeyPages(
-  client: GlideClient,
+  client: Pick<GlideClient, "scan">,
   pattern: string,
   { count, signal }: ScanKeyPagesOptions,
 ): AsyncGenerator<GlideString[]> {
