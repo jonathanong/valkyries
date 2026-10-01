@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Decoder, type GlideClient } from "@valkey/valkey-glide";
+import { Decoder, type GlideClient, type GlideString } from "@valkey/valkey-glide";
 import {
   deleteKeysWithLiteralPrefixes,
   deleteKeysWithPrefix,
   scanAndUnlinkKeys,
 } from "../delete.mts";
+import type { ScanAndUnlinkKeysClient } from "../types.mts";
 
 const { mockHandleValkeyError } = vi.hoisted(() => ({
   mockHandleValkeyError: vi.fn(),
@@ -196,6 +197,24 @@ describe("deleteKeysWithPrefix", () => {
 describe("scanAndUnlinkKeys", () => {
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("accepts any client with GLIDE-compatible scan and unlink methods", async () => {
+    const unlinked: GlideString[][] = [];
+    const client: ScanAndUnlinkKeysClient = {
+      scan: async (cursor) => (cursor === "0" ? ["7", ["prefix:a"]] : ["0", ["prefix:b"]]),
+      unlink: async (keys) => {
+        unlinked.push(keys);
+        return keys.length;
+      },
+    };
+
+    await expect(scanAndUnlinkKeys(client, "prefix:*")).resolves.toEqual({
+      scannedKeys: 2,
+      matchedKeys: 2,
+      unlinkedKeys: 2,
+    });
+    expect(unlinked).toEqual([["prefix:a"], ["prefix:b"]]);
   });
 
   it("scans every page and returns scanned, matched, and confirmed unlink counts", async () => {
