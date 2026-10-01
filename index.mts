@@ -26,6 +26,7 @@ export type {
   DynamicConfigField,
   DynamicConfigFieldType,
   DynamicConfigOptions,
+  ScanAndUnlinkKeysClient,
   ScanAndUnlinkKeysOptions,
   ScanAndUnlinkKeysResult,
   ExpireKeysWithNoExpiryOptions,

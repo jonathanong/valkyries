@@ -7,6 +7,12 @@ export type ScanAndUnlinkKeysOptions = {
   matches?: (key: GlideString) => boolean;
 };
 
+/**
+ * The client methods `scanAndUnlinkKeys` calls. Any client with GLIDE-compatible `scan` and
+ * `unlink` signatures is accepted, including GLIDE forks that do not share the `GlideClient` class.
+ */
+export type ScanAndUnlinkKeysClient = Pick<GlideClient, "scan" | "unlink">;
+
 export type ScanAndUnlinkKeysResult = {
   /** Number of keys returned by SCAN, including any duplicates from its non-snapshot iteration. */
   scannedKeys: number;

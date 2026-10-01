@@ -6,7 +6,7 @@ These normalization helpers are exported from the package root.
 
 ```ts
 scanAndUnlinkKeys(
-  client: GlideClient,
+  client: ScanAndUnlinkKeysClient, // Pick<GlideClient, "scan" | "unlink">
   pattern: string,
   options?: {
     signal?: AbortSignal;

@@ -1,16 +1,22 @@
 import { handleValkeyError } from "./errors.mts";
 import { glideStringToString, scanKeyPages, throwIfAborted } from "./scan.mts";
-import type { ScanAndUnlinkKeysOptions, ScanAndUnlinkKeysResult } from "./types.mts";
-import type { GlideClient } from "@valkey/valkey-glide";
+import type {
+  ScanAndUnlinkKeysClient,
+  ScanAndUnlinkKeysOptions,
+  ScanAndUnlinkKeysResult,
+} from "./types.mts";
 
 const DEFAULT_SCAN_COUNT = 500;
 
-export async function deleteKeysWithPrefix(client: GlideClient, pattern: string): Promise<void> {
+export async function deleteKeysWithPrefix(
+  client: ScanAndUnlinkKeysClient,
+  pattern: string,
+): Promise<void> {
   await scanAndUnlinkKeys(client, pattern);
 }
 
 export async function deleteKeysWithLiteralPrefixes(
-  client: GlideClient,
+  client: ScanAndUnlinkKeysClient,
   pattern: string,
   prefixes: readonly string[],
 ): Promise<void> {
@@ -31,7 +37,7 @@ export async function deleteKeysWithLiteralPrefixes(
  * omit keys, or differ from the number of keys that exist when this function returns.
  */
 export async function scanAndUnlinkKeys(
-  client: GlideClient,
+  client: ScanAndUnlinkKeysClient,
   pattern: string,
   { signal, matches = () => true }: ScanAndUnlinkKeysOptions = {},
 ): Promise<ScanAndUnlinkKeysResult> {
