@@ -77,6 +77,8 @@ config.waitForInitialization(): Promise<void>
 
 Waits for field validation, default writes, initial field loading, pub/sub subscription, and timer creation.
 
+The shared subscription client uses a 2-second native connection timeout and a 5-second creation deadline. If creation rejects or reaches that deadline, the cached attempt is cleared and callers receive the failure; a later explicit call can start a new attempt. A client that finishes creation after the deadline is closed rather than retained. This does not automatically retry initialization or cancel an unresolved native creation operation.
+
 ## `getFields()`
 
 ```ts
