@@ -142,4 +142,18 @@ describe("DynamicConfig subscription creation deadline", () => {
     expect(vi.mocked(old).close.mock.calls).toHaveLength(1);
     expect(await ensureDynamicConfigValkeySubscriptionClient()).toBe(replacement);
   });
+  it("keeps a replacement cached when shutdown's older creation rejects", async () => {
+    const pending = Promise.withResolvers<GlideClient>();
+    create().mockReturnValueOnce(pending.promise);
+    const failure = new Error("old connection failed during shutdown");
+    const original = expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toBe(failure);
+    const shutdown = expect(closeDynamicConfigValkeySubscriptionClient()).rejects.toBe(failure);
+    const replacement = client();
+    create().mockResolvedValueOnce(replacement);
+    expect(await ensureDynamicConfigValkeySubscriptionClient()).toBe(replacement);
+    pending.reject(failure);
+    await original;
+    await shutdown;
+    expect(await ensureDynamicConfigValkeySubscriptionClient()).toBe(replacement);
+  });
 });
