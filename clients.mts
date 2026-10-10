@@ -9,6 +9,8 @@ import { config } from "./config.mts";
 import { handleValkeyError } from "./errors.mts";
 
 const CLIENT_CLOSE_SETTLE_MS = 100;
+const SUBSCRIPTION_CONNECTION_TIMEOUT_MS = 2_000;
+const SUBSCRIPTION_CREATION_TIMEOUT_MS = 5_000;
 
 export type ValkeyReadFrom = "primary" | "preferReplica";
 
@@ -46,17 +48,53 @@ export function removePubSubMessageHandler(handler: PubSubMessageHandler): void 
   pubSubMessageHandlers.delete(handler);
 }
 
+function reportSubscriptionError(error: unknown): void {
+  try {
+    handleValkeyError(error);
+  } catch (cause) {
+    // Error reporting must not replace the native failure or reject an ignored observer.
+    process.emitWarning(
+      new AggregateError([error, cause], "DynamicConfig subscription error handler threw", {
+        cause,
+      }),
+    );
+  }
+}
+
 export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClient> {
   if (dynamicConfigValkeySubscriptionClientPromise)
     return dynamicConfigValkeySubscriptionClientPromise;
 
-  const clientPromise = GlideClient.createClient(
-    buildDynamicConfigSubscriptionClientConfig(config.dynamic_config_url),
-  ).catch((error) => {
-    dynamicConfigValkeySubscriptionClientPromise = null;
-    handleValkeyError(error);
-    throw error;
+  let expired = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      expired = true;
+      reject(new Error("DynamicConfig subscription client creation timed out after 5000 ms"));
+    }, SUBSCRIPTION_CREATION_TIMEOUT_MS);
   });
+  const creation = Promise.resolve()
+    .then(() =>
+      GlideClient.createClient(
+        buildDynamicConfigSubscriptionClientConfig(config.dynamic_config_url),
+      ),
+    )
+    .then((client) => {
+      if (expired) client.close();
+      return client;
+    });
+  // Observe late native rejection/close failure after the deadline has already won.
+  creation.catch((error) => {
+    if (expired) reportSubscriptionError(error);
+  });
+  const clientPromise = Promise.race([creation, deadline])
+    .catch((error) => {
+      if (dynamicConfigValkeySubscriptionClientPromise === clientPromise)
+        dynamicConfigValkeySubscriptionClientPromise = null;
+      reportSubscriptionError(error);
+      throw error;
+    })
+    .finally(() => clearTimeout(timer));
 
   dynamicConfigValkeySubscriptionClientPromise = clientPromise;
   return clientPromise;
@@ -139,6 +177,7 @@ export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {
 export function buildDynamicConfigSubscriptionClientConfig(url: string) {
   return {
     ...glideConfigFromUrl(url, { readFrom: "preferReplica", lazyConnect: false }),
+    advancedConfiguration: { connectionTimeout: SUBSCRIPTION_CONNECTION_TIMEOUT_MS },
     pubsubSubscriptions: {
       channelsAndPatterns: {
         [GlideClientConfiguration.PubSubChannelModes.Pattern]: new Set(["dynamic-config:*"]),
