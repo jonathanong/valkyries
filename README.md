@@ -126,7 +126,7 @@ const client = await GlideClient.createClient(glideConfigFromUrl("redis://localh
 const cache = new ValkeyCache({ prefix: "custom", ttlSeconds: 60, client });
 ```
 
-Call `closeValkeyClients()` to close package-managed clients.
+Call `closeValkeyClients()` to close package-managed clients. Pass `{ throwOnError: true }` to reject with an `AggregateError` if any close fails.
 
 ## Scan and Unlink Keys
 
