@@ -43,11 +43,12 @@ export function validateOneOf(next: Fields, field: string, allowed: readonly str
 
 /** Requires the named number fields to be strictly ascending in the given order. */
 export function validateStrictlyAscending(next: Fields, fields: readonly string[]): void {
-  for (let i = 1; i < fields.length; i += 1) {
-    const previous = next[fields[i - 1]];
-    const value = next[fields[i]];
-    if (typeof previous !== "number" || typeof value !== "number" || !(previous < value)) {
+  let previous = -Infinity;
+  for (const field of fields) {
+    const value = next[field];
+    if (typeof value !== "number" || !(previous < value)) {
       throw new DynamicConfigValidationError(`Fields must be ordered: ${fields.join(" < ")}`);
     }
+    previous = value;
   }
 }

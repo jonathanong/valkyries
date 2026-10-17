@@ -28,7 +28,8 @@ export function validateDynamicConfigUpdate(
     throw new DynamicConfigValidationError("Changes must not be empty");
   }
 
-  const validated: Record<string, DynamicConfigField> = {};
+  // Null prototype so a declared `__proto__` field stays an own property.
+  const validated: Record<string, DynamicConfigField> = Object.create(null);
   let changed = false;
   for (const name of names) {
     const value = validateFieldValue(definition, name, (changes as Record<string, unknown>)[name]);
@@ -91,9 +92,11 @@ export function getChangedFields(
 ): DynamicConfigChangedFields {
   const before = previous ?? {};
   const after = next ?? {};
-  const changed: DynamicConfigChangedFields = {};
+  const changed: DynamicConfigChangedFields = Object.create(null);
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    if (before[key] !== after[key]) changed[key] = { previous: before[key], next: after[key] };
+    const previousValue = Object.hasOwn(before, key) ? before[key] : undefined;
+    const nextValue = Object.hasOwn(after, key) ? after[key] : undefined;
+    if (previousValue !== nextValue) changed[key] = { previous: previousValue, next: nextValue };
   }
   return changed;
 }

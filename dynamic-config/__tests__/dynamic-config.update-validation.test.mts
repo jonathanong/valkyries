@@ -47,6 +47,18 @@ describe("dynamic-config.update-validation", () => {
     );
   });
 
+  it("validateDynamicConfigUpdate keeps a declared __proto__ field as an own property", () => {
+    const protoDefinition = {
+      namespace: "p",
+      config: { fieldTypes: JSON.parse('{"__proto__":"number"}') },
+      fields: JSON.parse('{"__proto__":{}}'),
+    };
+    const result = validateDynamicConfigUpdate(protoDefinition, {}, JSON.parse('{"__proto__":2}'));
+    expect(Object.hasOwn(result.changes, "__proto__")).toBe(true);
+    expect(Object.hasOwn(result.next, "__proto__")).toBe(true);
+    expect(result.changed).toBe(true);
+  });
+
   it("validateDynamicConfigUpdate applies no number rules without rules", () => {
     const bare = { ...definition, fields: { enabled: {}, limit: {}, mode: {} } };
     expect(validateDynamicConfigUpdate(bare, current, { limit: -1.5 }).changes).toEqual({
@@ -81,5 +93,8 @@ describe("dynamic-config.update-validation", () => {
     });
     expect(getChangedFields({ a: 1 }, null)).toEqual({ a: { previous: 1, next: undefined } });
     expect(getChangedFields(null, undefined)).toEqual({});
+    expect(Object.hasOwn(getChangedFields({}, JSON.parse('{"__proto__":1}')), "__proto__")).toBe(
+      true,
+    );
   });
 });

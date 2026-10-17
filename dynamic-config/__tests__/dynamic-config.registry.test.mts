@@ -35,6 +35,8 @@ describe("dynamic-config.registry", () => {
       c: {},
     });
     expect(withMaxValueExemption({ a: {} }, "why")).toEqual({ a: { maxValueExemption: "why" } });
+    const proto = withMaxValueExemption(JSON.parse('{"__proto__":{}}'), "why");
+    expect(Object.hasOwn(proto, "__proto__")).toBe(true);
   });
 
   it("createDynamicConfigRegistry looks up entries and rejects duplicate namespaces", () => {

@@ -52,5 +52,7 @@ describe("dynamic-config.validators", () => {
     expect(() => validateStrictlyAscending({ a: "1", b: 2 }, ["a", "b"])).toThrow("a < b");
     expect(() => validateStrictlyAscending({ a: 1, b: "2" }, ["a", "b"])).toThrow("a < b");
     expect(() => validateStrictlyAscending({ a: 1 }, ["a", "b"])).toThrow("a < b");
+    expect(() => validateStrictlyAscending({ a: "x" }, ["a"])).toThrow("Fields must be ordered: a");
+    expect(() => validateStrictlyAscending({ a: Number.NaN }, ["a"])).toThrow("ordered");
   });
 });

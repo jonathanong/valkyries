@@ -30,7 +30,7 @@ export function withMaxValueExemption<T extends Record<string, DynamicConfigFiel
   reason: string,
   except: readonly string[] = [],
 ): T {
-  const result: Record<string, DynamicConfigFieldRules> = {};
+  const result: Record<string, DynamicConfigFieldRules> = Object.create(null);
   for (const name of Object.keys(fields)) {
     const rules = fields[name];
     result[name] =
