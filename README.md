@@ -181,6 +181,7 @@ include duplicates or omit keys while the keyspace changes. `scanCount` is a SCA
 - [Conditional operations](docs/conditional-operations.md)
 - [Events and metrics](docs/events-and-metrics.md)
 - [Lua scripts](docs/lua-scripts.md)
+- [Diagnostics](docs/diagnostics.md)
 - [Utilities](docs/utilities.md)
 - [Testing and CI](docs/testing-and-ci.md)
 - [Migration guide](docs/migration.md)
