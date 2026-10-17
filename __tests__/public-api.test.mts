@@ -13,6 +13,17 @@ describe("public api", () => {
     expect(api.ValkeyBloomFilter).toBeTypeOf("function");
     expect(api.DynamicConfig).toBeTypeOf("function");
     expect(api.getBoundedPositiveIntegerField).toBeTypeOf("function");
+    expect(api.defineDynamicConfigNamespace).toBeTypeOf("function");
+    expect(api.withMaxValueExemption).toBeTypeOf("function");
+    expect(api.createDynamicConfigRegistry).toBeTypeOf("function");
+    expect(api.validateDynamicConfigUpdate).toBeTypeOf("function");
+    expect(api.DynamicConfigValidationError).toBeTypeOf("function");
+    expect(api.getChangedFields).toBeTypeOf("function");
+    expect(api.validatePositiveNumberFields).toBeTypeOf("function");
+    expect(api.validatePositiveIntegerFields).toBeTypeOf("function");
+    expect(api.validateNumberRange).toBeTypeOf("function");
+    expect(api.validateOneOf).toBeTypeOf("function");
+    expect(api.validateStrictlyAscending).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
     expect(api.getAndDelete).toBeTypeOf("function");
     expect(api.reserveIdempotencyKey).toBeTypeOf("function");

@@ -6,7 +6,7 @@ This is the entry point for the public `valkyries` API. Detailed API documentati
 
 - [`ValkeyCache`](cache.md) - read-through cache helpers, direct get/set APIs, invalidation, stale refresh, and Bloom-filter integration.
 - [`ValkeyBloomFilter`](bloom-filters.md) - Bloom filter lookup, writes, readiness markers, streaming rebuilds, and key helpers.
-- [`DynamicConfig`](dynamic-config.md) - distributed runtime fields backed by Valkey hashes and pub/sub updates.
+- [`DynamicConfig`](dynamic-config.md) - distributed runtime fields backed by Valkey hashes and pub/sub updates, plus namespace registries and update validation.
 - [Channel pub/sub](channel-pubsub.md) - ephemeral, caller-managed key-scoped pub/sub.
 - [`RateLimiter`](rate-limiter.md) - sliding-window rate limiting backed by sorted sets and Lua scripts.
 - [Idempotency keys](idempotency-key.md) - consume-once values and token-fenced idempotency-key lifecycle helpers.
