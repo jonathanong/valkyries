@@ -12,6 +12,7 @@ describe("public api", () => {
     expect(Reflect.get(api.ValkeyCache, "invalidateMany")).toBeTypeOf("function");
     expect(api.ValkeyBloomFilter).toBeTypeOf("function");
     expect(api.DynamicConfig).toBeTypeOf("function");
+    expect(api.getBoundedPositiveIntegerField).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
     expect(api.getAndDelete).toBeTypeOf("function");
     expect(api.reserveIdempotencyKey).toBeTypeOf("function");

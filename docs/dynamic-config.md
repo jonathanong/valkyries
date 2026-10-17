@@ -151,3 +151,20 @@ import { dynamicConfigs } from "valkyries";
 ```
 
 Array of live `DynamicConfig` instances. It is used by `closeValkeyClients()` to close configs during shutdown.
+
+## `getBoundedPositiveIntegerField(config, field, limits)`
+
+```ts
+import { getBoundedPositiveIntegerField } from "valkyries/dynamic-config";
+
+const batchSize = getBoundedPositiveIntegerField(flags, "batchSize", {
+  defaultValue: 100,
+  maxValue: 1000,
+});
+```
+
+Reads a numeric field from `config.fields` and returns it only when it is an integer greater than `0` and at most `limits.maxValue`. Otherwise it returns `limits.defaultValue`.
+
+A missing field, a non-number, a non-integer, `0`, a negative number, and a value above `maxValue` all fall back to `defaultValue`. Values above `maxValue` are treated as invalid and are never clamped to the maximum.
+
+`config` only needs a `fields` map, so any `DynamicConfig` instance works.

@@ -20,6 +20,8 @@ import {
   stringifyField,
   validateFieldTypes,
 } from "./dynamic-config/fields.mts";
+export { getBoundedPositiveIntegerField } from "./dynamic-config/bounded-field.mts";
+export type { BoundedPositiveIntegerLimits } from "./dynamic-config/bounded-field.mts";
 const NAMESPACE = "dynamic-config";
 const isTest = process.env.NODE_ENV === "test";
 
