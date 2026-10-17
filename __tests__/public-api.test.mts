@@ -25,6 +25,10 @@ describe("public api", () => {
     expect(api.validateOneOf).toBeTypeOf("function");
     expect(api.validateStrictlyAscending).toBeTypeOf("function");
     expect(api.RateLimiter).toBeTypeOf("function");
+    expect(api.parseValkeyMemoryInfo).toBeTypeOf("function");
+    expect(api.getValkeyMemoryInfo).toBeTypeOf("function");
+    expect(api.countKeysByPrefix).toBeTypeOf("function");
+    expect(api.validateKeyPrefixRegistry).toBeTypeOf("function");
     expect(api.getAndDelete).toBeTypeOf("function");
     expect(api.reserveIdempotencyKey).toBeTypeOf("function");
     expect(api.completeIdempotencyKey).toBeTypeOf("function");

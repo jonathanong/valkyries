@@ -15,6 +15,17 @@ export * from "./cache-metrics.mts";
 export * from "./retry.mts";
 export { scanAndUnlinkKeys } from "./delete.mts";
 export { expireKeysWithNoExpiry } from "./expiry.mts";
+export {
+  countKeysByPrefix,
+  getValkeyMemoryInfo,
+  parseValkeyMemoryInfo,
+  validateKeyPrefixRegistry,
+} from "./diagnostics.mts";
+export type {
+  CountKeysByPrefixOptions,
+  DiagnosticsOptions,
+  ValkeyMemorySummary,
+} from "./diagnostics.mts";
 export type {
   RateLimiterAddAndCheckWindowsOptions,
   RateLimiterOptions,

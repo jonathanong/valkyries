@@ -27,6 +27,7 @@ export default defineConfig({
         "clients.mts",
         "expiry.mts",
         "scan.mts",
+        "diagnostics.mts",
         "channel-pubsub.mts",
         "channel-pubsub-internals.mts",
       ],
