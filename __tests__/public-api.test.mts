@@ -42,6 +42,7 @@ describe("public api", () => {
     expect(api.urlsToClients).toBeInstanceOf(Map);
     expect(api.multiCacheGetByAnyBatch).toBeTypeOf("function");
     expect(api.scanAndUnlinkKeys).toBeTypeOf("function");
+    expect(api.scanAndUnlinkKeyPrefixes).toBeTypeOf("function");
     expect(api).not.toHaveProperty("deleteKeysWithPrefix");
     expect(api).not.toHaveProperty("deleteKeysWithLiteralPrefixes");
     expect(api.expireKeysWithNoExpiry).toBeTypeOf("function");
