@@ -13,7 +13,7 @@ export * from "./errors.mts";
 export * from "./key-normalization.mts";
 export * from "./cache-metrics.mts";
 export * from "./retry.mts";
-export { scanAndUnlinkKeys } from "./delete.mts";
+export { scanAndUnlinkKeyPrefixes, scanAndUnlinkKeys } from "./delete.mts";
 export { expireKeysWithNoExpiry } from "./expiry.mts";
 export type {
   RateLimiterAddAndCheckWindowsOptions,

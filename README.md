@@ -146,6 +146,16 @@ The result reports `scannedKeys`, `matchedKeys`, and keys confirmed removed by `
 `unlinkedKeys`. `SCAN` is non-snapshot, so these counts can include duplicates or omit keys while
 the keyspace changes.
 
+Use `scanAndUnlinkKeyPrefixes()` to flush several literal prefixes serially. Prefixes are
+glob-escaped, later prefixes still run after a failure, and several failures are combined into an
+`AggregateError` that reports `unlinkedKeys`:
+
+```ts
+const { unlinkedKeys } = await scanAndUnlinkKeyPrefixes(client, ["cache:users:", "cache:teams:"], {
+  signal: abortController.signal,
+});
+```
+
 ## Expire Keys Without a TTL
 
 Use `expireKeysWithNoExpiry()` to apply a TTL only when matching keys still have no expiry:

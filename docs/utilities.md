@@ -24,6 +24,25 @@ from the keys that exist when the call returns. The optional `signal` is checked
 every SCAN and UNLINK boundary; its exact abort reason is rethrown without reporting it to the
 configured Valkey error handler.
 
+## `scanAndUnlinkKeyPrefixes(client, prefixes, options)`
+
+```ts
+scanAndUnlinkKeyPrefixes(
+  client: ScanAndUnlinkKeysClient,
+  prefixes: readonly string[],
+  options?: ScanAndUnlinkKeysOptions, // { signal?, matches? }
+): Promise<{ unlinkedKeys: number }>
+```
+
+Runs `scanAndUnlinkKeys` serially for each distinct prefix, glob-escaping `*`, `?`, `[`, `]`, and
+`\` and appending `*`, so a prefix matches only keys that literally start with it. An empty or
+non-string prefix throws a `TypeError` before any scan starts.
+
+A failing prefix does not stop later prefixes. One failure is rethrown as-is; two or more are
+combined into an `AggregateError` whose message and `unlinkedKeys` property report the keys already
+removed. Failures reach the configured Valkey error handler once, from `scanAndUnlinkKeys`. The
+`signal` is checked before each prefix, and its exact abort reason is rethrown immediately.
+
 ## `expireKeysWithNoExpiry(client, options)`
 
 ```ts

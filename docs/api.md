@@ -31,6 +31,7 @@ import {
   reserveIdempotencyKey,
   closeValkeyClients,
   scanAndUnlinkKeys,
+  scanAndUnlinkKeyPrefixes,
   expireKeysWithNoExpiry,
 } from "valkyries";
 ```
