@@ -10,7 +10,7 @@ Connections are deduplicated by URL, read preference, and lazy-connect setting t
 
 For libraries, tests, and multi-tenant services, pass a `GlideClient` directly to `ValkeyCache`, `ValkeyBloomFilter`, `DynamicConfig`, or `RateLimiter`.
 
-Use `closeValkeyClients()` or `onGracefulShutdown()` to close package-managed clients and the dynamic-config pub/sub connection.
+Use `closeValkeyClients()` (or the argument-free `onGracefulShutdown()`) to close package-managed clients and the dynamic-config pub/sub connection.
 
 ## Default Clients
 
@@ -102,8 +102,20 @@ Registers or removes handlers that receive dynamic-config pub/sub messages.
 ## Shutdown
 
 ```ts
-closeValkeyClients(): Promise<void>
+closeValkeyClients(options?: { throwOnError?: boolean }): Promise<void>
 onGracefulShutdown(): Promise<void>
 ```
 
-Both exports point to the same idempotent shutdown function. It closes all live dynamic configs, package-managed clients, and the dynamic-config subscription client.
+`closeValkeyClients()` closes all live dynamic configs first, then package-managed clients and the dynamic-config subscription client. Closing `dynamicConfigs` yourself before calling it is unnecessary. `onGracefulShutdown()` runs the same sequence but takes no arguments, so it is safe to pass directly as a signal or lifecycle callback.
+
+By default, close failures are reported to `handleValkeyError` and the promise always resolves. With `throwOnError: true`, failures are still reported to `handleValkeyError`; after every close has settled, the promise rejects with `new AggregateError(errors, "Valkey shutdown failed")`.
+
+```ts
+try {
+  await closeValkeyClients({ throwOnError: true });
+} catch (error) {
+  if (error instanceof AggregateError) process.exitCode = 1;
+}
+```
+
+Shutdown runs once per process. Repeated calls are no-ops that resolve immediately, including a later call that passes `throwOnError: true` after an earlier call without it: it neither re-closes anything nor reports the earlier failures.
