@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { config } from "./config.mts";
 
 /**
  * Substring patterns that identify transient Valkey / Glide errors which are safe to retry.
@@ -93,10 +94,10 @@ export async function retryValkeyOperation<T>(
 }
 
 export type RetrySaturationErrorOptions = {
-  /** Maximum number of attempts (default: 3). */
+  /** Maximum number of attempts (default: `VALKEY_INFLIGHT_RETRY_ATTEMPTS`, or 3). */
   attempts?: number;
   /**
-   * Minimum milliseconds between attempts (default: 1000).
+   * Minimum milliseconds between attempts (default: `VALKEY_INFLIGHT_RETRY_DELAY_MS`, or 1000).
    * Actual delay is jittered in [delayMs, delayMs * 5] to spread concurrent retriers.
    */
   delayMs?: number;
@@ -105,6 +106,10 @@ export type RetrySaturationErrorOptions = {
 /**
  * Retries a Valkey operation only on inflight-saturation rejections
  * (`Reached maximum inflight requests`), with jittered delay in [delayMs, delayMs*5].
+ *
+ * When `attempts` / `delayMs` are omitted they default to `config.inflight_retry_attempts` /
+ * `config.inflight_retry_delay_ms` (`VALKEY_INFLIGHT_RETRY_ATTEMPTS` /
+ * `VALKEY_INFLIGHT_RETRY_DELAY_MS`); explicit options take precedence.
  *
  * All other errors are rethrown immediately. Use this at internal command boundaries
  * so callers don't need to wrap each call site.
@@ -117,8 +122,8 @@ export function retrySaturationError<T>(
   options?: RetrySaturationErrorOptions,
 ): Promise<T> {
   return retryValkeyOperation(fn, {
-    attempts: options?.attempts,
-    delayMs: options?.delayMs,
+    attempts: options?.attempts ?? config.inflight_retry_attempts,
+    delayMs: options?.delayMs ?? config.inflight_retry_delay_ms,
     shouldRetry: isSaturationError,
     jitter: true,
   });

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { config } from "../config.mts";
 import {
   isRetryableValkeyError,
   isSaturationError,
@@ -367,5 +368,53 @@ describe("retrySaturationError", () => {
     expect(timeouts[0]).toBeLessThanOrEqual(500);
 
     vi.restoreAllMocks();
+  });
+
+  describe("config defaults", () => {
+    const original = {
+      attempts: config.inflight_retry_attempts,
+      delayMs: config.inflight_retry_delay_ms,
+    };
+
+    afterEach(() => {
+      config.inflight_retry_attempts = original.attempts;
+      config.inflight_retry_delay_ms = original.delayMs;
+    });
+
+    it("uses config.inflight_retry_* when options are omitted", async () => {
+      config.inflight_retry_attempts = 2;
+      config.inflight_retry_delay_ms = 7;
+      const timeouts: number[] = [];
+      const origSetTimeout = globalThis.setTimeout;
+      vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void, ms?: number) => {
+        timeouts.push(ms ?? 0);
+        return origSetTimeout(fn, ms);
+      });
+      const { fn, getCalls } = makeAlwaysInflightFn();
+
+      const promise = retrySaturationError(fn);
+      const check = expect(promise).rejects.toThrow("Reached maximum inflight requests");
+      await vi.runAllTimersAsync();
+      await check;
+
+      expect(getCalls()).toBe(2);
+      expect(timeouts).toHaveLength(1);
+      expect(timeouts[0]).toBeGreaterThanOrEqual(7);
+      expect(timeouts[0]).toBeLessThanOrEqual(35);
+      vi.restoreAllMocks();
+    });
+
+    it("lets explicit options override config.inflight_retry_*", async () => {
+      config.inflight_retry_attempts = 5;
+      config.inflight_retry_delay_ms = 100000;
+      const { fn, getCalls } = makeAlwaysInflightFn();
+
+      const promise = retrySaturationError(fn, { attempts: 2, delayMs: 1 });
+      const check = expect(promise).rejects.toThrow("Reached maximum inflight requests");
+      await vi.advanceTimersByTimeAsync(5);
+      await check;
+
+      expect(getCalls()).toBe(2);
+    });
   });
 });
