@@ -22,6 +22,25 @@ import {
 } from "./dynamic-config/fields.mts";
 export { getBoundedPositiveIntegerField } from "./dynamic-config/bounded-field.mts";
 export type { BoundedPositiveIntegerLimits } from "./dynamic-config/bounded-field.mts";
+export {
+  createDynamicConfigRegistry,
+  defineDynamicConfigNamespace,
+  withMaxValueExemption,
+} from "./dynamic-config/registry.mts";
+export {
+  DynamicConfigValidationError,
+  getChangedFields,
+  validateDynamicConfigUpdate,
+} from "./dynamic-config/validation.mts";
+export {
+  validateNumberRange,
+  validateOneOf,
+  validatePositiveIntegerFields,
+  validatePositiveNumberFields,
+  validateStrictlyAscending,
+} from "./dynamic-config/validators.mts";
+export type * from "./dynamic-config/types.mts";
+
 const NAMESPACE = "dynamic-config";
 const isTest = process.env.NODE_ENV === "test";
 

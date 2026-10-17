@@ -168,3 +168,91 @@ Reads a numeric field from `config.fields` and returns it only when it is an int
 A missing field, a non-number, a non-integer, `0`, a negative number, and a value above `maxValue` all fall back to `defaultValue`. Values above `maxValue` are treated as invalid and are never clamped to the maximum.
 
 `config` only needs a `fields` map, so any `DynamicConfig` instance works.
+
+## Namespaces and Update Validation
+
+These helpers validate untrusted updates, such as admin edits, before they reach `setFields()`. They are pure: they never read or write Valkey, and they only read `config.fieldTypes`. Authorization, audit history, and response shapes stay in the application.
+
+```ts
+import {
+  createDynamicConfigRegistry,
+  defineDynamicConfigNamespace,
+  validateDynamicConfigUpdate,
+  validateStrictlyAscending,
+} from "valkyries/dynamic-config";
+
+const registry = createDynamicConfigRegistry([
+  defineDynamicConfigNamespace({
+    namespace: "limits",
+    config: limits, // a DynamicConfig
+    fields: {
+      soft: { minValue: 1, integer: true, description: "Soft limit" },
+      hard: { minValue: 1, maxValue: 1000, integer: true },
+    },
+    validate: (next) => validateStrictlyAscending(next, ["soft", "hard"]),
+  }),
+]);
+
+const entry = registry.get("limits");
+if (entry) {
+  await entry.config.waitForInitialization();
+  const update = validateDynamicConfigUpdate(entry, entry.config.getFields(), requestBody);
+  if (update.changed) await entry.config.setFields(update.changes);
+}
+```
+
+### `defineDynamicConfigNamespace(definition)`
+
+Returns `definition` unchanged. Throws when `fields` does not have exactly one entry per `config.fieldTypes` key, which catches rules that have drifted from the config schema. Definitions may carry extra application properties, such as labels or access policy. Those properties keep their types through the registry.
+
+```ts
+type DynamicConfigNamespaceDefinition = {
+  namespace: string;
+  config: { fieldTypes: Record<string, "string" | "number" | "boolean"> };
+  fields: Record<string, DynamicConfigFieldRules>;
+  validate?: (next: Record<string, string | number | boolean>) => void;
+};
+
+type DynamicConfigFieldRules = {
+  description?: string;
+  minValue?: number; // inclusive, number fields
+  maxValue?: number; // inclusive, number fields
+  maxValueExemption?: string; // why a number field has no maxValue
+  integer?: boolean; // number fields must be safe integers
+};
+```
+
+### `withMaxValueExemption(fields, reason, except?)`
+
+Returns a copy of `fields` that sets `maxValueExemption: reason` on every field without a `maxValue`, skipping the names in `except`.
+
+### `createDynamicConfigRegistry(entries)`
+
+Returns `{ entries, get(namespace) }`. `get` returns `null` for unknown namespaces. Throws on duplicate namespaces.
+
+### `validateDynamicConfigUpdate(definition, current, changes)`
+
+Validates `changes` against the definition and returns `{ changes, next, changed }`. `changes` holds the validated values, `next` is `current` merged with `changes`, and `changed` is true when any requested value differs from `current`. Throws `DynamicConfigValidationError` when:
+
+- `changes` is not a non-empty plain object
+- a field name is not in `config.fieldTypes`
+- a value does not already have the field's declared type (`boolean`, `string`, or a finite `number`)
+- a number breaks the field's `integer`, `minValue`, or `maxValue` rule
+
+After those checks it runs the definition's `validate` hook on `next`. The hook may throw any error.
+
+Unlike `setFields()`, it does not coerce values. For example, `"3"` is rejected for a number field and `"true"` is rejected for a boolean field.
+
+### `getChangedFields(previous, next)`
+
+Shallow diff of two field snapshots: `Record<string, { previous, next }>`. A missing key reads as `undefined`, and `null` or `undefined` snapshots are treated as empty.
+
+### Validators
+
+Use these inside a `validate` hook. Each one throws `DynamicConfigValidationError`.
+
+- `validatePositiveNumberFields(next)`: every number field must be finite and greater than 0.
+- `validatePositiveIntegerFields(next)`: every number field must be an integer greater than 0.
+- `validateNumberRange(next, field, min, max)`: `next[field]` must be a finite number in `[min, max]`.
+- `validateOneOf(next, field, allowed)`: `next[field]` must be one of the `allowed` strings.
+- `validateStrictlyAscending(next, fields)`: the named fields must be numbers in strictly ascending order.
