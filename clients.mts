@@ -62,6 +62,18 @@ function reportSubscriptionError(error: unknown): void {
   }
 }
 
+export const SUBSCRIPTION_WARNING_TYPE = "ValkeySubscriptionWarning";
+
+// Recoverable subscription problems are warnings so a retried attempt never reaches the
+// application's error handler; only the final failure does.
+function warnSubscription(message: string): void {
+  process.emitWarning(message, { type: SUBSCRIPTION_WARNING_TYPE });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClient> {
   if (dynamicConfigValkeySubscriptionClientPromise)
     return dynamicConfigValkeySubscriptionClientPromise;
@@ -73,16 +85,21 @@ export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClie
       try {
         return await createSubscriptionClientAttempt(attempt, attempts);
       } catch (error) {
-        reportSubscriptionError(error);
         // Stop once retries run out or shutdown/replacement has detached this attempt.
-        if (attempt >= attempts || !isCurrent()) throw error;
-        await delay(
-          Math.min(
-            SUBSCRIPTION_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
-            SUBSCRIPTION_RETRY_MAX_DELAY_MS,
-          ),
+        if (attempt >= attempts || !isCurrent()) {
+          reportSubscriptionError(error);
+          throw error;
+        }
+        const backoffMs = Math.min(
+          SUBSCRIPTION_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+          SUBSCRIPTION_RETRY_MAX_DELAY_MS,
         );
-        if (!isCurrent()) throw error;
+        warnSubscription(`${errorMessage(error)}; retrying in ${backoffMs} ms`);
+        await delay(backoffMs);
+        if (!isCurrent()) {
+          reportSubscriptionError(error);
+          throw error;
+        }
       }
     }
   })().catch((error: unknown) => {
@@ -119,12 +136,10 @@ function createSubscriptionClientAttempt(attempt: number, attempts: number): Pro
     )
     .then((client) => {
       if (expired) {
-        reportSubscriptionError(
-          new Error(
-            `DynamicConfig subscription client creation finished after ` +
-              `${Date.now() - startedAt} ms, past its ${timeoutMs} ms deadline ` +
-              `(attempt ${attempt}/${attempts}); closing the late client`,
-          ),
+        warnSubscription(
+          `DynamicConfig subscription client creation finished after ` +
+            `${Date.now() - startedAt} ms, past its ${timeoutMs} ms deadline ` +
+            `(attempt ${attempt}/${attempts}); closing the late client`,
         );
         client.close();
       }
@@ -132,7 +147,12 @@ function createSubscriptionClientAttempt(attempt: number, attempts: number): Pro
     });
   // Observe late native rejection/close failure after the deadline has already won.
   creation.catch((error) => {
-    if (expired) reportSubscriptionError(error);
+    if (expired) {
+      warnSubscription(
+        `DynamicConfig subscription client attempt ${attempt}/${attempts} failed after its ` +
+          `deadline: ${errorMessage(error)}`,
+      );
+    }
   });
   return Promise.race([creation, deadline]).finally(() => clearTimeout(timer));
 }
