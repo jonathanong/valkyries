@@ -77,7 +77,9 @@ config.waitForInitialization(): Promise<void>
 
 Waits for field validation, default writes, initial field loading, pub/sub subscription, and timer creation.
 
-The shared subscription client uses a 2-second native connection timeout and a 5-second creation deadline. If creation rejects or reaches that deadline, the cached attempt is cleared and callers receive the failure; a later explicit call can start a new attempt. A client that finishes creation after the deadline is closed rather than retained. This does not automatically retry initialization or cancel an unresolved native creation operation.
+The shared subscription client uses a 2-second native connection timeout and a per-attempt creation deadline (`VALKEY_SUBSCRIPTION_CREATION_TIMEOUT_MS`, default 5 seconds). A creation that rejects or reaches the deadline is reported through the Valkey error handler and retried up to `VALKEY_SUBSCRIPTION_CREATION_ATTEMPTS` total attempts (default 3), with exponential backoff starting at 1 second and capped at 5 seconds. The timeout error names the attempt and how long the deadline actually took to fire; a value well above the deadline points at event-loop starvation rather than a stalled connection. A client that finishes creation after its deadline is reported with its real creation time and closed rather than retained. Once attempts run out, the cached attempt is cleared and callers receive the last attempt's error; a later explicit call can start a new attempt. Shutdown stops further retries. Retries do not cancel an unresolved native creation operation.
+
+With the defaults, `waitForInitialization()` can wait about 18 seconds (3 × 5 seconds plus 1 + 2 seconds of backoff) before it rejects. Applications that treat that rejection as fatal still exit once retries run out.
 
 ## `getFields()`
 
