@@ -90,8 +90,9 @@ export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClie
       try {
         return await createSubscriptionClientAttempt(attempt, attempts);
       } catch (error) {
-        // Stop once retries run out or shutdown/replacement has detached this attempt.
-        if (attempt >= attempts || !isCurrent()) {
+        // A detached attempt belongs to shutdown, which reports its rejection itself.
+        if (!isCurrent()) throw error;
+        if (attempt >= attempts) {
           reportSubscriptionError(error);
           throw error;
         }
@@ -101,10 +102,7 @@ export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClie
         );
         warnSubscription(`${errorMessage(error)}; retrying in ${backoffMs} ms`);
         await delay(backoffMs);
-        if (!isCurrent()) {
-          reportSubscriptionError(error);
-          throw error;
-        }
+        if (!isCurrent()) throw error;
       }
     }
   })().catch((error: unknown) => {

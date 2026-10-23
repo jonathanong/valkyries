@@ -298,6 +298,8 @@ describe("DynamicConfig subscription creation retries", () => {
   it("stops retrying when shutdown detaches the attempt during backoff", async () => {
     vi.useFakeTimers();
     vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    const reported: Error[] = [];
+    setValkeyErrorHandler((error) => reported.push(error));
     const failure = new Error("first attempt failed");
     create().mockRejectedValueOnce(failure);
     const original = expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toBe(failure);
@@ -307,6 +309,8 @@ describe("DynamicConfig subscription creation retries", () => {
     await original;
     await shutdown;
     expect(create()).toHaveBeenCalledTimes(1);
+    // Shutdown's caller reports the rejection; the retry loop does not duplicate it.
+    expect(reported).toEqual([]);
   });
 
   it("stops retrying when shutdown detaches the attempt before it fails", async () => {

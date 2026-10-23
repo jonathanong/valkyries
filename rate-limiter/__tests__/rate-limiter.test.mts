@@ -784,8 +784,22 @@ describe("rate-limiter.generated", () => {
     const rateLimiter = new RateLimiter({ prefix, ttlSeconds: 10 });
     await rateLimiter.add(["global"]);
 
-    await RateLimiter.invalidate("");
+    // Scan with the real global pattern, but only unlink this test's keys so concurrently
+    // running test files keep their rate-limiter state.
+    const ownPrefix = `rate-limiter:${prefix}:`;
+    const patterns: unknown[] = [];
+    const client = {
+      scan: (...args: Parameters<GlideClient["scan"]>) => {
+        patterns.push(args[1]?.match);
+        return rateLimiterValkeyClient.scan(...args);
+      },
+      unlink: (keys: Parameters<GlideClient["unlink"]>[0]) =>
+        rateLimiterValkeyClient.unlink(keys.filter((key) => String(key).startsWith(ownPrefix))),
+    } as unknown as GlideClient;
 
+    await RateLimiter.invalidate("", client);
+
+    expect(patterns[0]).toBe("rate-limiter:*");
     await expect(rateLimiter.get(["global"])).resolves.toEqual([0]);
   });
 });
