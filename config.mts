@@ -21,12 +21,13 @@ export const config = {
     return Number.isFinite(n) ? n : 500;
   })(),
   subscription_creation_attempts: (() => {
-    const n = Number(process.env.VALKEY_SUBSCRIPTION_CREATION_ATTEMPTS);
-    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
+    const n = Math.floor(Number(process.env.VALKEY_SUBSCRIPTION_CREATION_ATTEMPTS));
+    return Number.isFinite(n) && n >= 1 ? n : 3;
   })(),
   subscription_creation_timeout_ms: (() => {
-    const n = Number(process.env.VALKEY_SUBSCRIPTION_CREATION_TIMEOUT_MS);
-    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5000;
+    const n = Math.floor(Number(process.env.VALKEY_SUBSCRIPTION_CREATION_TIMEOUT_MS));
+    // Node fires timers above 2^31 - 1 ms after ~1 ms, so fall back instead.
+    return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : 5000;
   })(),
   inflight_retry_attempts: (() => {
     const n = Number(process.env.VALKEY_INFLIGHT_RETRY_ATTEMPTS);
