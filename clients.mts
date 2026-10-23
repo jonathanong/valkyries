@@ -71,7 +71,13 @@ function warnSubscription(message: string): void {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  try {
+    return String(error);
+  } catch {
+    // e.g. Object.create(null) has no toString; never let formatting abort a retry.
+    return "An unknown error occurred";
+  }
 }
 
 export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClient> {

@@ -267,6 +267,19 @@ describe("DynamicConfig subscription creation retries", () => {
     });
   });
 
+  it("keeps retrying when a rejection value cannot be stringified", async () => {
+    vi.useFakeTimers();
+    const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    const next = client();
+    create().mockRejectedValueOnce(Object.create(null)).mockResolvedValueOnce(next);
+    const pending = ensureDynamicConfigValkeySubscriptionClient();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await pending).toBe(next);
+    expect(warning).toHaveBeenCalledWith("An unknown error occurred; retrying in 1000 ms", {
+      type: SUBSCRIPTION_WARNING_TYPE,
+    });
+  });
+
   it("stops retrying when shutdown detaches the attempt during backoff", async () => {
     vi.useFakeTimers();
     vi.spyOn(process, "emitWarning").mockImplementation(() => {});
