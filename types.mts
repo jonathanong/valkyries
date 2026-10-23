@@ -72,6 +72,24 @@ export type RateLimiterOptions = {
   inflightRetryDelayMs?: number;
 };
 
+export type RateLimiterConsumeOptions = {
+  /** A key is refused when its current count + cost >= threshold */
+  threshold: number;
+  /** Positive integer units to charge every id (default 1, max 10_000) */
+  cost?: number;
+  /** Overrides the instance TTL for this call */
+  ttlSeconds?: number;
+};
+
+export type RateLimiterConsumeResult = {
+  /** True when any id is over budget; nothing was charged */
+  limited: boolean;
+  /** Pre-call counts when limited, post-charge counts otherwise. Aligns with filtered ids. */
+  counts: number[];
+  /** Longest wait until every limited id could absorb the cost; 0 when not limited */
+  retryAfterMs: number;
+};
+
 export type RateLimiterWindow = {
   /** The prefix to use for this window's rate-limiter key */
   prefix: string;

@@ -60,4 +60,5 @@ Rate limiter scripts:
 - `rate-limiter-add.lua`
 - `rate-limiter-add-and-check.lua`
 - `rate-limiter-add-and-check-windows.lua`
+- `rate-limiter-consume.lua`
 - `rate-limiter-get.lua`

@@ -28,6 +28,8 @@ export type {
 } from "./diagnostics.mts";
 export type {
   RateLimiterAddAndCheckWindowsOptions,
+  RateLimiterConsumeOptions,
+  RateLimiterConsumeResult,
   RateLimiterOptions,
   RateLimiterWindow,
   ValkeyBloomFilterOptions,

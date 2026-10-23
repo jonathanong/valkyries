@@ -16,6 +16,8 @@ Use `addAndCheck(ids, threshold)` for request paths. It atomically adds an event
 
 A threshold of `N` blocks the Nth request because the count is checked after incrementing.
 
+Use `consume(ids, { threshold, cost })` to charge a weighted batch all or nothing in one Valkey round trip, for example one charge for a 500-target batch instead of 500 `addAndCheck` calls.
+
 Use `RateLimiter.addAndCheckWindows(windows)` when one logical request must be checked against multiple TTL/threshold windows in one Valkey round trip. All windows in that call must share one Redis Cluster hash tag.
 
 ## Import
@@ -80,6 +82,37 @@ Atomically records events and returns the current counts.
 - Empty or all-falsy input returns `{ counts: [], limited: false }`.
 - `ttlSeconds` overrides the instance TTL for this check.
 - Unexpected Valkey response types fail open with zero counts.
+
+## `consume(ids, options)`
+
+```ts
+limiter.consume(
+  ids: string[],
+  options: { threshold: number; cost?: number; ttlSeconds?: number },
+): Promise<{ limited: boolean; counts: number[]; retryAfterMs: number }>
+```
+
+Atomically charges `cost` units to every ID, all or nothing.
+
+- An ID is over budget when its current count + `cost` >= `threshold`. If any ID is over budget, nothing is added to any ID and `limited` is `true`.
+- This matches `addAndCheck`, where the Nth request is the first one refused: a cost-N `consume` succeeds exactly when N separate cost-1 calls would all succeed. Unlike `addAndCheck`, a refused `consume` does not record anything.
+- A repeated ID is charged once per occurrence against a single budget, so `["a", "a"]` with `cost: 3` charges `a` 6 units. Each occurrence still gets its own entry in `counts`.
+- A fractional `threshold` behaves like its ceiling, because counts are integers.
+- `counts` are the pre-call counts when limited, and the post-charge counts otherwise. They align with the filtered truthy IDs.
+- `retryAfterMs` is `0` when not limited. When limited, it is the longest wait across the limited IDs until enough of their oldest entries expire for the charge to fit.
+- When `cost >= threshold` the charge can never succeed, and `retryAfterMs` is the full TTL.
+- `cost` defaults to `1` and must be an integer from `1` to `10_000`. `threshold` must be a finite number greater than `0`.
+- Each charged ID gains `cost` sorted-set members, so script work grows with `ids.length × cost`. Keep large-cost batches to a reasonable number of IDs.
+- Empty or all-falsy input returns `{ limited: false, counts: [], retryAfterMs: 0 }`.
+- `ttlSeconds` overrides the instance TTL for this call.
+- Unexpected Valkey response types fail open with zero counts.
+
+```ts
+const { limited, retryAfterMs } = await limiter.consume([`user:${userId}`], {
+  threshold: 1000,
+  cost: targets.length,
+});
+```
 
 ## `RateLimiter.addAndCheckWindows(windows, options?)`
 
