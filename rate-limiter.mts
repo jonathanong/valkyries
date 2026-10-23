@@ -141,6 +141,7 @@ export class RateLimiter {
    * until enough of the oldest entries expire on every limited ID. When cost >= threshold
    * the charge can never succeed and `retryAfterMs` is the full TTL.
    *
+   * A repeated id is charged once per occurrence against one budget.
    * Falsy ids are silently filtered; `counts` aligns with the filtered ids.
    */
   async consume(

@@ -179,6 +179,40 @@ describe("RateLimiter.consume", () => {
     }
   });
 
+  it("charges duplicate ids once per occurrence against one budget", async () => {
+    const limiter = makeLimiter();
+    try {
+      // 2 occurrences x cost 3 = 6 units, which reaches threshold 6
+      const refused = await limiter.consume(["a", "a"], { threshold: 6, cost: 3 });
+      expect(refused).toEqual({ limited: true, counts: [0, 0], retryAfterMs: 10_000 });
+      expect(await limiter.get(["a"])).toEqual([0]);
+
+      expect(await limiter.consume(["a", "b", "a"], { threshold: 7, cost: 3 })).toEqual({
+        limited: false,
+        counts: [6, 3, 6],
+        retryAfterMs: 0,
+      });
+      expect(await limiter.get(["a", "b"])).toEqual([6, 3]);
+    } finally {
+      await limiter.invalidate();
+    }
+  });
+
+  it("treats a fractional threshold like its ceiling", async () => {
+    const limiter = makeLimiter();
+    try {
+      await limiter.consume(["a"], { threshold: 10, cost: 1 });
+      // ceil(2.5) = 3: count 1 + cost 2 reaches it
+      const result = await limiter.consume(["a"], { threshold: 2.5, cost: 2 });
+      expect(result.limited).toBe(true);
+      expect(result.counts).toEqual([1]);
+      expect(result.retryAfterMs).toBeGreaterThan(9000);
+      expect((await limiter.consume(["a"], { threshold: 2.5, cost: 1 })).limited).toBe(false);
+    } finally {
+      await limiter.invalidate();
+    }
+  });
+
   it("rejects invalid cost and threshold", async () => {
     const limiter = makeLimiter();
     for (const cost of [0, -1, 1.5, Number.NaN, 10_001]) {

@@ -96,6 +96,8 @@ Atomically charges `cost` units to every ID, all or nothing.
 
 - An ID is over budget when its current count + `cost` >= `threshold`. If any ID is over budget, nothing is added to any ID and `limited` is `true`.
 - This matches `addAndCheck`, where the Nth request is the first one refused: a cost-N `consume` succeeds exactly when N separate cost-1 calls would all succeed. Unlike `addAndCheck`, a refused `consume` does not record anything.
+- A repeated ID is charged once per occurrence against a single budget, so `["a", "a"]` with `cost: 3` charges `a` 6 units. Each occurrence still gets its own entry in `counts`.
+- A fractional `threshold` behaves like its ceiling, because counts are integers.
 - `counts` are the pre-call counts when limited, and the post-charge counts otherwise. They align with the filtered truthy IDs.
 - `retryAfterMs` is `0` when not limited. When limited, it is the longest wait across the limited IDs until enough of their oldest entries expire for the charge to fit.
 - When `cost >= threshold` the charge can never succeed, and `retryAfterMs` is the full TTL.
