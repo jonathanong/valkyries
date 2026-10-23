@@ -111,6 +111,25 @@ describe("RateLimiter.saturation-retry", () => {
     expect(callCount()).toBe(3);
   });
 
+  it("consume: retries on saturation and succeeds when the client recovers", async () => {
+    // consume returns [limited_flag, retryAfterMs, ...counts]
+    const { client, callCount } = makeTransientSaturationClient(2, [0, 0, 3]);
+    const rl = new RateLimiter({
+      prefix: "retry-test",
+      ttlSeconds: 10,
+      client,
+      inflightRetryAttempts: 3,
+      inflightRetryDelayMs: 50,
+    });
+
+    const promise = rl.consume(["id-1"], { threshold: 10, cost: 3 });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result).toEqual({ limited: false, counts: [3], retryAfterMs: 0 });
+    expect(callCount()).toBe(3);
+  });
+
   it("addAndCheckWindows: retries on saturation and succeeds when the client recovers", async () => {
     // addAndCheckWindows returns [count, limited_flag, ...write_flags]
     // [1, 0, 1] = count=1, not limited, wrote=true

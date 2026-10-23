@@ -2,6 +2,8 @@ import { rateLimiterValkeyClient } from "./clients.mts";
 import { loadScript, registerScript } from "./scripts.mts";
 import type {
   RateLimiterAddAndCheckWindowsOptions,
+  RateLimiterConsumeOptions,
+  RateLimiterConsumeResult,
   RateLimiterOptions,
   RateLimiterWindow,
 } from "./types.mts";
@@ -15,11 +17,16 @@ import { retrySaturationError } from "./retry.mts";
 import { config } from "./config.mts";
 
 const NAMESPACE = "rate-limiter";
+// Bounds per-key script work: consume() adds `cost` sorted-set members to every key.
+const MAX_CONSUME_COST = 10_000;
 
 const rateLimiterAddScript = registerScript(loadScript("rate-limiter-add.lua", import.meta.url));
 const rateLimiterGetScript = registerScript(loadScript("rate-limiter-get.lua", import.meta.url));
 const rateLimiterAddAndCheckScript = registerScript(
   loadScript("rate-limiter-add-and-check.lua", import.meta.url),
+);
+const rateLimiterConsumeScript = registerScript(
+  loadScript("rate-limiter-consume.lua", import.meta.url),
 );
 const rateLimiterAddAndCheckWindowsScript = registerScript(
   loadScript("rate-limiter-add-and-check-windows.lua", import.meta.url),
@@ -123,6 +130,51 @@ export class RateLimiter {
     emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
     emitValkeyEvent("rate-limiter:get", { prefix: this.prefix, ids: filteredIds, counts });
     return { counts, limited };
+  }
+
+  /**
+   * Atomically charges `cost` units to every ID, all or nothing.
+   * Refuses (and charges nothing) when any ID's current count + cost >= threshold, so a
+   * cost-N consume succeeds exactly when N separate cost-1 addAndCheck calls would.
+   *
+   * When limited, `counts` are the pre-call counts and `retryAfterMs` is the longest wait
+   * until enough of the oldest entries expire on every limited ID. When cost >= threshold
+   * the charge can never succeed and `retryAfterMs` is the full TTL.
+   *
+   * Falsy ids are silently filtered; `counts` aligns with the filtered ids.
+   */
+  async consume(
+    ids: string[],
+    { threshold, cost = 1, ttlSeconds = this.ttl }: RateLimiterConsumeOptions,
+  ): Promise<RateLimiterConsumeResult> {
+    if (!Number.isInteger(cost) || cost < 1 || cost > MAX_CONSUME_COST) {
+      throw new Error(
+        `RateLimiter.consume: cost must be an integer between 1 and ${MAX_CONSUME_COST}`,
+      );
+    }
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      throw new Error("RateLimiter.consume: threshold must be a finite number greater than 0");
+    }
+    const filteredIds = ids.filter(Boolean);
+    if (filteredIds.length === 0) return { limited: false, counts: [], retryAfterMs: 0 };
+    const keys = filteredIds.map((id) => this.getKey(id));
+    // Use CSPRNG to prevent predictability and collisions; the script appends key and unit indexes.
+    const args = [ttlSeconds.toString(), threshold.toString(), cost.toString(), randomUUID()];
+    const results = await retrySaturationError(
+      () => this.client.invokeScript(rateLimiterConsumeScript, { keys, args }),
+      { attempts: this.inflightRetryAttempts, delayMs: this.inflightRetryDelayMs },
+    );
+    // Fail open like addAndCheck: the response is unreliable, so skip events.
+    if (!Array.isArray(results)) {
+      handleValkeyError(new Error(`consume: unexpected Valkey response type ${typeof results}`));
+      return { limited: false, counts: filteredIds.map(() => 0), retryAfterMs: 0 };
+    }
+    const limited = normalizeCountResult(results[0]) === 1;
+    const retryAfterMs = normalizeCountResult(results[1]);
+    const counts = results.slice(2).map((result) => normalizeCountResult(result));
+    if (!limited) emitValkeyEvent("rate-limiter:add", { prefix: this.prefix, ids: filteredIds });
+    emitValkeyEvent("rate-limiter:get", { prefix: this.prefix, ids: filteredIds, counts });
+    return { limited, counts, retryAfterMs };
   }
 
   /**

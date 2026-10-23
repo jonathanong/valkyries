@@ -36,6 +36,7 @@ const scriptRegistry = {
   rateLimiterAdd: new Script(loadScript("rate-limiter-add.lua", scriptBaseUrl)),
   rateLimiterGet: new Script(loadScript("rate-limiter-get.lua", scriptBaseUrl)),
   rateLimiterAddAndCheck: new Script(loadScript("rate-limiter-add-and-check.lua", scriptBaseUrl)),
+  rateLimiterConsume: new Script(loadScript("rate-limiter-consume.lua", scriptBaseUrl)),
   rateLimiterAddAndCheckWindows: new Script(
     loadScript("rate-limiter-add-and-check-windows.lua", scriptBaseUrl),
   ),
@@ -329,6 +330,29 @@ describe("lua scripts", () => {
           args: ["record-all", "30", "3", "0", "a-3", "30", "3", "0", "b-3"],
         }),
       ).toEqual([3, 3, 1, 1, 1]);
+    } finally {
+      await rateLimiterValkeyClient.unlink(keys);
+    }
+  });
+
+  it("consumes weighted rate limiter units all or nothing", async () => {
+    const id = uniqueId("rate-consume");
+    const keys = [`rate-limiter:lua-consume:{${id}:a}`, `rate-limiter:lua-consume:{${id}:b}`];
+    try {
+      expect(
+        await rateLimiterValkeyClient.invokeScript(scriptRegistry.rateLimiterConsume, {
+          keys,
+          args: ["30", "5", "3", "base-1"],
+        }),
+      ).toEqual([0, 0, 3, 3]);
+      const limited = (await rateLimiterValkeyClient.invokeScript(
+        scriptRegistry.rateLimiterConsume,
+        { keys, args: ["30", "5", "2", "base-2"] },
+      )) as number[];
+      expect(limited[0]).toBe(1);
+      expect(limited[1]).toBeGreaterThan(29_000);
+      expect(limited.slice(2)).toEqual([3, 3]);
+      expect(Number(await rateLimiterValkeyClient.customCommand(["ZCARD", keys[0]!]))).toBe(3);
     } finally {
       await rateLimiterValkeyClient.unlink(keys);
     }
