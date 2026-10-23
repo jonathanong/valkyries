@@ -71,11 +71,10 @@ function warnSubscription(message: string): void {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
   try {
-    return String(error);
+    return String(error instanceof Error ? error.message : error);
   } catch {
-    // e.g. Object.create(null) has no toString; never let formatting abort a retry.
+    // e.g. Object.create(null) or a throwing/Symbol message; never let formatting abort a retry.
     return "An unknown error occurred";
   }
 }

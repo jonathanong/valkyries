@@ -271,13 +271,28 @@ describe("DynamicConfig subscription creation retries", () => {
     vi.useFakeTimers();
     const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
     const next = client();
-    create().mockRejectedValueOnce(Object.create(null)).mockResolvedValueOnce(next);
-    const pending = ensureDynamicConfigValkeySubscriptionClient();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(await pending).toBe(next);
-    expect(warning).toHaveBeenCalledWith("An unknown error occurred; retrying in 1000 ms", {
-      type: SUBSCRIPTION_WARNING_TYPE,
+    config.subscription_creation_attempts = 4;
+    const throwingMessage = new Error("hidden");
+    Object.defineProperty(throwingMessage, "message", {
+      get() {
+        throw new Error("message getter failed");
+      },
     });
+    const symbolMessage = new Error("hidden");
+    Object.defineProperty(symbolMessage, "message", { value: Symbol("reason") });
+    create()
+      .mockRejectedValueOnce(Object.create(null))
+      .mockRejectedValueOnce(throwingMessage)
+      .mockRejectedValueOnce(symbolMessage)
+      .mockResolvedValueOnce(next);
+    const pending = ensureDynamicConfigValkeySubscriptionClient();
+    await vi.advanceTimersByTimeAsync(1_000 + 2_000 + 4_000);
+    expect(await pending).toBe(next);
+    expect(warning.mock.calls.map(([message]) => message)).toEqual([
+      "An unknown error occurred; retrying in 1000 ms",
+      "An unknown error occurred; retrying in 2000 ms",
+      "Symbol(reason); retrying in 4000 ms",
+    ]);
   });
 
   it("stops retrying when shutdown detaches the attempt during backoff", async () => {
