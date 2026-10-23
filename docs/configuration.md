@@ -18,3 +18,7 @@ The cache client uses `readFrom: "preferReplica"`. Rate limiter reads use `prima
 ## Saturation retries
 
 `VALKEY_INFLIGHT_RETRY_ATTEMPTS` (default `3`) and `VALKEY_INFLIGHT_RETRY_DELAY_MS` (default `1000`) set how internal command boundaries retry commands the client rejects locally with `Reached maximum inflight requests`. The exported `retrySaturationError(fn, options?)` uses the same values when `options.attempts` / `options.delayMs` are omitted; explicit options take precedence. Delays are jittered in `[delayMs, delayMs * 5]`.
+
+## Dynamic config subscription client
+
+`VALKEY_SUBSCRIPTION_CREATION_ATTEMPTS` (default `3`) and `VALKEY_SUBSCRIPTION_CREATION_TIMEOUT_MS` (default `5000`) set how many times the shared dynamic-config pub/sub client is created before giving up, and the deadline for each attempt. Retries back off exponentially from 1 second, capped at 5 seconds. See [Dynamic config](dynamic-config.md#waitforinitialization).

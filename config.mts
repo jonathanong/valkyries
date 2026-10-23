@@ -20,6 +20,14 @@ export const config = {
     const n = Number(process.env.VALKEY_REQUEST_TIMEOUT_MS);
     return Number.isFinite(n) ? n : 500;
   })(),
+  subscription_creation_attempts: (() => {
+    const n = Number(process.env.VALKEY_SUBSCRIPTION_CREATION_ATTEMPTS);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;
+  })(),
+  subscription_creation_timeout_ms: (() => {
+    const n = Number(process.env.VALKEY_SUBSCRIPTION_CREATION_TIMEOUT_MS);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 5000;
+  })(),
   inflight_retry_attempts: (() => {
     const n = Number(process.env.VALKEY_INFLIGHT_RETRY_ATTEMPTS);
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3;

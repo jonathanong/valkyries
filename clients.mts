@@ -10,7 +10,8 @@ import { handleValkeyError } from "./errors.mts";
 
 const CLIENT_CLOSE_SETTLE_MS = 100;
 const SUBSCRIPTION_CONNECTION_TIMEOUT_MS = 2_000;
-const SUBSCRIPTION_CREATION_TIMEOUT_MS = 5_000;
+const SUBSCRIPTION_RETRY_BASE_DELAY_MS = 1_000;
+const SUBSCRIPTION_RETRY_MAX_DELAY_MS = 5_000;
 
 export type ValkeyReadFrom = "primary" | "preferReplica";
 
@@ -65,13 +66,50 @@ export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClie
   if (dynamicConfigValkeySubscriptionClientPromise)
     return dynamicConfigValkeySubscriptionClientPromise;
 
+  const attempts = config.subscription_creation_attempts;
+  const isCurrent = () => dynamicConfigValkeySubscriptionClientPromise === clientPromise;
+  const clientPromise: Promise<GlideClient> = (async () => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await createSubscriptionClientAttempt(attempt, attempts);
+      } catch (error) {
+        reportSubscriptionError(error);
+        // Stop once retries run out or shutdown/replacement has detached this attempt.
+        if (attempt >= attempts || !isCurrent()) throw error;
+        await delay(
+          Math.min(
+            SUBSCRIPTION_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+            SUBSCRIPTION_RETRY_MAX_DELAY_MS,
+          ),
+        );
+        if (!isCurrent()) throw error;
+      }
+    }
+  })().catch((error: unknown) => {
+    if (isCurrent()) dynamicConfigValkeySubscriptionClientPromise = null;
+    throw error;
+  });
+
+  dynamicConfigValkeySubscriptionClientPromise = clientPromise;
+  return clientPromise;
+}
+
+function createSubscriptionClientAttempt(attempt: number, attempts: number): Promise<GlideClient> {
+  const timeoutMs = config.subscription_creation_timeout_ms;
+  const startedAt = Date.now();
   let expired = false;
   let timer: ReturnType<typeof setTimeout>;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       expired = true;
-      reject(new Error("DynamicConfig subscription client creation timed out after 5000 ms"));
-    }, SUBSCRIPTION_CREATION_TIMEOUT_MS);
+      // A fire time well past timeoutMs points at event-loop starvation rather than a native stall.
+      reject(
+        new Error(
+          `DynamicConfig subscription client creation timed out after ${timeoutMs} ms ` +
+            `(attempt ${attempt}/${attempts}, deadline fired after ${Date.now() - startedAt} ms)`,
+        ),
+      );
+    }, timeoutMs);
   });
   const creation = Promise.resolve()
     .then(() =>
@@ -80,24 +118,27 @@ export function ensureDynamicConfigValkeySubscriptionClient(): Promise<GlideClie
       ),
     )
     .then((client) => {
-      if (expired) client.close();
+      if (expired) {
+        reportSubscriptionError(
+          new Error(
+            `DynamicConfig subscription client creation finished after ` +
+              `${Date.now() - startedAt} ms, past its ${timeoutMs} ms deadline ` +
+              `(attempt ${attempt}/${attempts}); closing the late client`,
+          ),
+        );
+        client.close();
+      }
       return client;
     });
   // Observe late native rejection/close failure after the deadline has already won.
   creation.catch((error) => {
     if (expired) reportSubscriptionError(error);
   });
-  const clientPromise = Promise.race([creation, deadline])
-    .catch((error) => {
-      if (dynamicConfigValkeySubscriptionClientPromise === clientPromise)
-        dynamicConfigValkeySubscriptionClientPromise = null;
-      reportSubscriptionError(error);
-      throw error;
-    })
-    .finally(() => clearTimeout(timer));
+  return Promise.race([creation, deadline]).finally(() => clearTimeout(timer));
+}
 
-  dynamicConfigValkeySubscriptionClientPromise = clientPromise;
-  return clientPromise;
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function closeDynamicConfigValkeySubscriptionClient(): Promise<void> {

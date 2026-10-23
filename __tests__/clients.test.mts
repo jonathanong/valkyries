@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { GlideClient } from "@valkey/valkey-glide";
+import { config } from "../config.mts";
 import {
   cacheValkeyClient,
   rateLimiterValkeyClient,
@@ -112,10 +113,15 @@ describe("clients exports and pubsub", () => {
     it("ensureDynamicConfigValkeySubscriptionClient handles errors and resets promise", async () => {
       const error = new Error("Connection failed");
       vi.spyOn(GlideClient, "createClient").mockRejectedValueOnce(error);
-
-      await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
-        "Connection failed",
-      );
+      const attempts = config.subscription_creation_attempts;
+      config.subscription_creation_attempts = 1;
+      try {
+        await expect(ensureDynamicConfigValkeySubscriptionClient()).rejects.toThrow(
+          "Connection failed",
+        );
+      } finally {
+        config.subscription_creation_attempts = attempts;
+      }
 
       const successClient = {
         punsubscribe: vi.fn(),
