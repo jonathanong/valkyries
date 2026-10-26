@@ -88,6 +88,9 @@ export class LeaseController implements RenewableLease {
   }
 
   #renew(): void {
+    // A blocked event loop can run this timer past the deadline; never extend an expired lease.
+    this.#checkDeadline();
+    if (this.#state !== "held") return;
     this.#inFlight = this.#renewOnce();
   }
 

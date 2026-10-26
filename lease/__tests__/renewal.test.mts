@@ -221,6 +221,28 @@ describe("lease monotonic deadline", () => {
     }
   });
 
+  it("does not dispatch an overdue renewal once the deadline has passed", async () => {
+    const key = uniqueKey("deadline-overdue");
+    const ctl = controlledClient();
+    fakeTimers();
+    try {
+      const lease = await acquireRenewableLease(key, {
+        ttlMs: 900,
+        renewalIntervalMs: 300,
+        client: ctl.client,
+      });
+      const base = performance.now();
+      // The event loop was blocked past the deadline before the renewal timer ran.
+      vi.spyOn(performance, "now").mockImplementation(() => base + 900);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(ctl.state.renewCalls).toBe(0);
+      await expect(lease!.lost).resolves.toEqual({ reason: "expired" });
+      await lease!.release();
+    } finally {
+      await realClient.unlink([key]);
+    }
+  });
+
   it("re-arms the expiry timer when it fires early", async () => {
     const key = uniqueKey("deadline-early");
     const ctl = controlledClient();
