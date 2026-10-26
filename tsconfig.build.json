@@ -13,7 +13,8 @@
     "cache/**/*.mts",
     "bloom-filter/**/*.mts",
     "dynamic-config/**/*.mts",
-    "idempotency-key/**/*.mts"
+    "idempotency-key/**/*.mts",
+    "lease/**/*.mts"
   ],
   "exclude": ["**/__tests__/**", "vitest.config.mts", "node_modules", "dist", "coverage"]
 }

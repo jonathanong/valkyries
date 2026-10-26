@@ -7,6 +7,10 @@ const unlinkIfValueMatchesScript = registerScript(
   loadScript("unlink-if-value-matches.lua", import.meta.url),
 );
 
+const pexpireIfValueMatchesScript = registerScript(
+  loadScript("pexpire-if-value-matches.lua", import.meta.url),
+);
+
 export type UnlinkIfValueMatchesOptions = {
   /** Optional Valkey client. Defaults to the package cache client. */
   client?: GlideClient;
@@ -31,4 +35,29 @@ export async function unlinkIfValueMatches(
   if (result === 1 || result === 1n) return true;
   if (result === 0 || result === 0n) return false;
   throw new Error(`Unexpected conditional unlink result: ${stringifyValkeyResult(result)}`);
+}
+
+/** Atomically sets a millisecond TTL on a key only when its stored string value matches. */
+export async function pexpireIfValueMatches(
+  key: string,
+  expectedValue: string,
+  ttlMs: number,
+  options: UnlinkIfValueMatchesOptions = {},
+): Promise<boolean> {
+  if (!key) throw new Error("key must not be empty");
+  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+    throw new Error("ttlMs must be a positive safe integer");
+  }
+
+  const result = await (options.client ?? cacheValkeyClient).invokeScript(
+    pexpireIfValueMatchesScript,
+    {
+      keys: [key],
+      args: [expectedValue, String(ttlMs)],
+    },
+  );
+
+  if (result === 1 || result === 1n) return true;
+  if (result === 0 || result === 0n) return false;
+  throw new Error(`Unexpected conditional pexpire result: ${stringifyValkeyResult(result)}`);
 }
