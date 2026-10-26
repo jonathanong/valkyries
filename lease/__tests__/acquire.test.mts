@@ -25,6 +25,11 @@ describe("acquireRenewableLease", () => {
     expect(api.acquireRenewableLease).toBe(leaseModule.acquireRenewableLease);
   });
 
+  it("runs real-Valkey fixtures against a noeviction primary", async () => {
+    const reply = await realClient.customCommand(["CONFIG", "GET", "maxmemory-policy"]);
+    expect(JSON.stringify(reply)).toContain("noeviction");
+  });
+
   it("rejects a missing client and invalid arguments before issuing commands", async () => {
     const set = vi.fn();
     const client = { set } as unknown as GlideClient;
