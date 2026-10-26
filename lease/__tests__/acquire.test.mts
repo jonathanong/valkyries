@@ -148,7 +148,8 @@ describe("acquireRenewableLease", () => {
         vi.advanceTimersByTime(800);
         return reply;
       },
-      invokeScript: ctl.client.invokeScript,
+      invokeScript: (...args: Parameters<GlideClient["invokeScript"]>) =>
+        ctl.client.invokeScript(...args),
     } as unknown as GlideClient;
     try {
       const lease = await acquireRenewableLease(key, {
