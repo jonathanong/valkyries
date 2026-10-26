@@ -44,6 +44,7 @@ type ValkeyCacheOptions<K = string> = {
   mode?: "json" | "text" | "buffer";
   staleTtlAge?: number;
   staleRefresh?: boolean;
+  runBackgroundRefresh?: (refresh: () => Promise<void>) => Promise<void>;
   bloomFilter?: ValkeyBloomFilter;
   bloomFilterEnabled?: () => boolean;
   client?: GlideClient;
@@ -59,12 +60,32 @@ For non-string keys, `keySerializer` is required.
 - `mode`: serialization mode. Defaults to `json`.
 - `staleTtlAge`: refresh-ahead threshold from `0` to `1`. Defaults to `0.9`.
 - `staleRefresh`: set to `false` to return stale hits without background refresh-ahead. Defaults to `true`.
+- `runBackgroundRefresh`: wraps every detached background refresh. See [Background refresh context](#background-refresh-context). Defaults to `(refresh) => refresh()`.
 - `bloomFilter`: optional negative-lookup Bloom filter.
 - `bloomFilterEnabled`: optional per-call gate for Bloom filter checks.
 - `client`: optional `@valkey/valkey-glide` client. Defaults to the package cache client.
 - `keySerializer`: converts keys to strings before trimming and lowercasing.
 
-The constructor throws when `prefix` is empty, `ttlSeconds` is not positive, or `staleTtlAge` is outside `0..1`.
+The constructor throws when `prefix` is empty, `ttlSeconds` is not positive, `staleTtlAge` is outside `0..1`, or `runBackgroundRefresh` is not a function.
+
+### Background refresh context
+
+Stale hits in `cacheGetByAny` and `cacheGetByAnyBatch` start a refresh that the read does not await. By default that refresh inherits the caller's async context, so request-scoped `AsyncLocalStorage` state such as a per-request query profiler also sees the refresh's fetch calls. `runBackgroundRefresh` is called once for each detached refresh, with a function that runs it, so you can choose its context:
+
+```ts
+const requestContext = new AsyncLocalStorage<RequestStore>();
+
+const cache = new ValkeyCache({
+  prefix: "users",
+  ttlSeconds: 300,
+  runBackgroundRefresh: (refresh) => requestContext.exit(refresh),
+});
+```
+
+- Only detached refreshes go through the wrapper. Fetches the read awaits, such as cold misses, and write-backs of miss results run in the caller's context.
+- valkyries never clears or replaces async context itself; the wrapper decides.
+- The wrapper is called synchronously on the read path. Call `refresh` and return its promise. `refresh` runs the refresh at most once, reports refresh errors through `setValkeyErrorHandler()`, and always resolves.
+- If the wrapper throws or rejects, the error is also reported through `setValkeyErrorHandler()`. The read still resolves, and the keys become eligible for refresh again on the next stale hit.
 
 ## `cacheGetByAny(fn)`
 

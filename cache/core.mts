@@ -25,6 +25,7 @@ export abstract class ValkeyCacheCore<K = string> {
   staleTtlAge: number;
   fallbackOnReadError: boolean;
   staleRefresh: boolean;
+  protected runBackgroundRefresh: (refresh: () => Promise<void>) => Promise<void>;
   protected bloomFilter?: ValkeyBloomFilter;
   protected bloomFilterEnabled?: () => boolean;
   protected refreshPromises: Map<string, Promise<void>>;
@@ -40,6 +41,7 @@ export abstract class ValkeyCacheCore<K = string> {
     mode = "json",
     staleTtlAge = 0.9,
     staleRefresh = true,
+    runBackgroundRefresh = (refresh) => refresh(),
     bloomFilter,
     bloomFilterEnabled,
     keySerializer,
@@ -60,6 +62,10 @@ export abstract class ValkeyCacheCore<K = string> {
     this.staleTtlAge = staleTtlAge;
     this.fallbackOnReadError = fallbackOnReadError;
     this.staleRefresh = staleRefresh;
+    if (typeof runBackgroundRefresh !== "function") {
+      throw new Error("ValkeyCache: runBackgroundRefresh must be a function");
+    }
+    this.runBackgroundRefresh = runBackgroundRefresh;
     this.bloomFilter = bloomFilter;
     this.bloomFilterEnabled = bloomFilterEnabled;
     this.refreshPromises = new Map();

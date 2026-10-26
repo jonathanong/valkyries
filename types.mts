@@ -146,6 +146,15 @@ export type ValkeyCacheOptions<K = string> = {
   /** When false, stale cache hits are returned without a background refresh. Defaults to true. */
   staleRefresh?: boolean;
   /**
+   * Wraps every detached background refresh (stale refresh-ahead in cacheGetByAny and
+   * cacheGetByAnyBatch). Called once per refresh with a function that runs it; call it and
+   * return its promise, e.g. to run the refresh in a different AsyncLocalStorage context.
+   * valkyries never changes async context itself. The refresh reports its own errors via
+   * handleValkeyError and its promise always resolves; errors thrown by the wrapper are also
+   * reported and never reject the caller's read. Defaults to `(refresh) => refresh()`.
+   */
+  runBackgroundRefresh?: (refresh: () => Promise<void>) => Promise<void>;
+  /**
    * Optional bloom filter for negative lookups — skip DB calls for entities
    * that definitely don't exist
    */

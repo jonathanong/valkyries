@@ -52,6 +52,18 @@ await cache.invalidateCacheGetByAny("user_123");
 
 Cache keys are normalized with `trim().toLowerCase()`. Use `keySerializer` for composite keys.
 
+Stale hits are refreshed in the background without blocking the read. Pass `runBackgroundRefresh` to choose the async context those detached refreshes run in, for example to keep them out of a per-request `AsyncLocalStorage` profiler:
+
+```ts
+const cache = new ValkeyCache({
+  prefix: "users",
+  ttlSeconds: 300,
+  runBackgroundRefresh: (refresh) => requestContext.exit(refresh),
+});
+```
+
+It defaults to `(refresh) => refresh()`. Wrapper errors are reported through `setValkeyErrorHandler()` and never reject the read. See [Cache](docs/cache.md#background-refresh-context).
+
 ## Bloom Filters
 
 ```ts
