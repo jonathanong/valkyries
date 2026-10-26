@@ -6,9 +6,8 @@ import { pttl, realClient, uniqueKey } from "./helpers.mts";
 const fixture = new URL("./holder.fixture.mts", import.meta.url).pathname;
 
 function runHolder(key: string): Promise<string | null> {
-  const url = process.env.VALKEY_URL ?? "redis://localhost:6379";
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [fixture, key, url], { stdio: "ignore" });
+    const child = spawn(process.execPath, [fixture, key], { stdio: "ignore" });
     child.once("error", reject);
     child.once("exit", (_code, signal) => resolve(signal));
   });

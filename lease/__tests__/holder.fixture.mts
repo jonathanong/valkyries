@@ -1,11 +1,8 @@
 // Child process fixture: acquires a lease, then dies without releasing or renewing it.
-import { GlideClient } from "@valkey/valkey-glide";
+// It inherits the parent's environment, so the cache client targets the test's server.
+import { cacheValkeyClient } from "../../clients.mts";
 import { acquireRenewableLease } from "../../lease.mts";
 
-const [key = "", url = ""] = process.argv.slice(2);
-const parsed = new URL(url);
-const client = await GlideClient.createClient({
-  addresses: [{ host: parsed.hostname, port: Number(parsed.port) }],
-});
-const lease = await acquireRenewableLease(key, { ttlMs: 60_000, client });
+const [key = ""] = process.argv.slice(2);
+const lease = await acquireRenewableLease(key, { ttlMs: 60_000, client: cacheValkeyClient });
 process.kill(process.pid, lease ? "SIGKILL" : "SIGTERM");
