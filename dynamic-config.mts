@@ -95,12 +95,19 @@ export class DynamicConfig {
     }
     dynamicConfigs.push(this);
     this.initialization = this.initialize();
-    /* v8 ignore next -- tests run with NODE_ENV=test and do not attach startup catch handlers. */
-    if (!isTest) {
-      this.initialization.catch((err) => {
+    // Observe startup failures in every NODE_ENV so they never become unhandled rejections.
+    this.initialization.catch((err) => {
+      try {
         handleValkeyError(err);
-      });
-    }
+      } catch (cause) {
+        // A throwing handler must not turn this observer into an unhandled rejection.
+        process.emitWarning(
+          new AggregateError([err, cause], "DynamicConfig initialization error handler threw", {
+            cause,
+          }),
+        );
+      }
+    });
   }
 
   async initialize() {
