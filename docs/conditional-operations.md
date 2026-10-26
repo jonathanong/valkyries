@@ -20,5 +20,11 @@ Atomically reads and unlinks one key using a Lua script.
 - Throws Valkey/client errors and unexpected script responses.
 - Defaults to the package cache client.
 
-The helper is single-key and Redis Cluster safe. Callers own key naming and any hash tags needed
+## `pexpireIfValueMatches(key, expectedValue, ttlMs, options?)`
+
+Atomically sets a millisecond TTL only when the stored string matches `expectedValue`. Returns
+`true` when the TTL was set and `false` when the key is absent or changed. `ttlMs` must be a
+positive safe integer. Defaults to the package cache client.
+
+The helpers are single-key and Redis Cluster safe. Callers own key naming and any hash tags needed
 to colocate this key with other application operations.

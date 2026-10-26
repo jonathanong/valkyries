@@ -201,6 +201,7 @@ include duplicates or omit keys while the keyspace changes. `scanCount` is a SCA
 - [Rate limiter](docs/rate-limiter.md)
 - [Idempotency keys](docs/idempotency-key.md)
 - [Conditional operations](docs/conditional-operations.md)
+- [Renewable leases](docs/lease.md)
 - [Events and metrics](docs/events-and-metrics.md)
 - [Lua scripts](docs/lua-scripts.md)
 - [Diagnostics](docs/diagnostics.md)

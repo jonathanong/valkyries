@@ -30,6 +30,9 @@ export default defineConfig({
         "diagnostics.mts",
         "channel-pubsub.mts",
         "channel-pubsub-internals.mts",
+        "conditional.mts",
+        "lease.mts",
+        "lease/**/*.mts",
       ],
       exclude: [
         "**/__tests__/**",

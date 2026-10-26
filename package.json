@@ -57,6 +57,11 @@
       "import": "./dist/idempotency-key.mjs",
       "default": "./dist/idempotency-key.mjs"
     },
+    "./lease": {
+      "types": "./dist/lease.d.mts",
+      "import": "./dist/lease.mjs",
+      "default": "./dist/lease.mjs"
+    },
     "./rate-limiter": {
       "types": "./dist/rate-limiter.d.mts",
       "import": "./dist/rate-limiter.mjs",

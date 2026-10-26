@@ -34,6 +34,8 @@ describe("public api", () => {
     expect(api.completeIdempotencyKey).toBeTypeOf("function");
     expect(api.releaseIdempotencyKey).toBeTypeOf("function");
     expect(api.unlinkIfValueMatches).toBeTypeOf("function");
+    expect(api.pexpireIfValueMatches).toBeTypeOf("function");
+    expect(api.acquireRenewableLease).toBeTypeOf("function");
     expect(api.closeValkeyClients).toBeTypeOf("function");
     expect(api.isRetryableValkeyError).toBeTypeOf("function");
     expect(api.retryValkeyOperation).toBeTypeOf("function");

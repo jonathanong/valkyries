@@ -10,6 +10,7 @@ This is the entry point for the public `valkyries` API. Detailed API documentati
 - [Channel pub/sub](channel-pubsub.md) - ephemeral, caller-managed key-scoped pub/sub.
 - [`RateLimiter`](rate-limiter.md) - sliding-window rate limiting backed by sorted sets and Lua scripts.
 - [Idempotency keys](idempotency-key.md) - consume-once values and token-fenced idempotency-key lifecycle helpers.
+- [Renewable leases](lease.md) - token-owned, auto-renewing leases with local loss notification (not a fencing token).
 
 ## Supporting APIs
 
@@ -44,6 +45,7 @@ Supported subpath exports:
 - `valkyries/bloom-filter`
 - `valkyries/dynamic-config`
 - `valkyries/idempotency-key`
+- `valkyries/lease`
 - `valkyries/rate-limiter`
 - `valkyries/channel-pubsub`
 

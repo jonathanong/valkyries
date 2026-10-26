@@ -53,6 +53,7 @@ Idempotency key scripts:
 
 Conditional operation scripts:
 
+- `pexpire-if-value-matches.lua`
 - `unlink-if-value-matches.lua`
 
 Rate limiter scripts:
