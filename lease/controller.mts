@@ -30,7 +30,8 @@ export class LeaseController implements RenewableLease {
       this.#resolveLost = resolve;
     });
     this.#deadline = dispatchedAt + options.ttlMs;
-    this.#schedule(options.renewalIntervalMs);
+    // The interval also starts at dispatch, so a slow acquisition renews sooner.
+    this.#schedule(Math.max(0, options.renewalIntervalMs - (performance.now() - dispatchedAt)));
   }
 
   get isHeld(): boolean {

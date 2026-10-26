@@ -139,6 +139,33 @@ describe("acquireRenewableLease", () => {
     }
   });
 
+  it("schedules the first renewal from dispatch when acquisition is slow", async () => {
+    const key = uniqueKey("slow-ack");
+    const ctl = controlledClient();
+    const slow = {
+      set: async (...args: Parameters<GlideClient["set"]>) => {
+        const reply = await realClient.set(...args);
+        vi.advanceTimersByTime(800);
+        return reply;
+      },
+      invokeScript: ctl.client.invokeScript,
+    } as unknown as GlideClient;
+    try {
+      const lease = await acquireRenewableLease(key, {
+        ttlMs: 900,
+        renewalIntervalMs: 300,
+        client: slow,
+      });
+      expect(lease!.isHeld).toBe(true);
+      await tickRenewal(ctl, 0);
+      expect(ctl.state.renewCalls).toBe(1);
+      expect(lease!.isHeld).toBe(true);
+      await lease!.release();
+    } finally {
+      await realClient.unlink([key]);
+    }
+  });
+
   it("surfaces the late-acknowledgement error even when best-effort cleanup fails", async () => {
     const client = {
       set: async () => {
