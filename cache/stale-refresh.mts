@@ -19,9 +19,10 @@ export abstract class ValkeyCacheStaleRefresh<K = string> extends ValkeyCacheCor
       staleKeys.push(keys[i]);
     }
     if (staleSerializedKeys.length === 0) return;
-    this.markRefreshesPending(staleSerializedKeys);
-    const refreshPromise = this.refreshBatch(staleSerializedKeys, staleKeys, batchFn);
-    refreshPromise.catch(handleValkeyError);
+    const sentinel = this.markRefreshesPending(staleSerializedKeys);
+    this.startBackgroundRefresh(staleSerializedKeys, sentinel, () =>
+      this.refreshBatch(staleSerializedKeys, staleKeys, batchFn),
+    );
   }
 
   protected refreshStaleEntry(
@@ -31,14 +32,43 @@ export abstract class ValkeyCacheStaleRefresh<K = string> extends ValkeyCacheCor
   ) {
     if (!this.shouldRefreshTtl(ttlSecondsRemaining)) return;
     if (this.refreshPromises.has(serializedKey)) return;
-    this.refreshPromises.set(serializedKey, Promise.resolve());
-    const refreshPromise = this.refreshSingle(serializedKey, fetchValue);
-    refreshPromise.catch(handleValkeyError);
+    const sentinel = this.markRefreshesPending([serializedKey]);
+    this.startBackgroundRefresh([serializedKey], sentinel, () =>
+      this.refreshSingle(serializedKey, fetchValue),
+    );
   }
 
   private markRefreshesPending(serializedKeys: string[]) {
     const sentinel = Promise.resolve();
     for (const key of serializedKeys) this.refreshPromises.set(key, sentinel);
+    return sentinel;
+  }
+
+  /**
+   * Hands a detached refresh to runBackgroundRefresh. The refresh reports its own errors, runs at
+   * most once, and a wrapper that throws, rejects, or never calls it cannot reject the caller's
+   * read or leave its keys marked pending.
+   */
+  private startBackgroundRefresh(
+    serializedKeys: string[],
+    sentinel: Promise<void>,
+    run: () => Promise<void>,
+  ) {
+    let refreshPromise: Promise<void> | undefined;
+    const refresh = () => (refreshPromise ??= run().catch(handleValkeyError));
+    const clearPending = () => {
+      for (const key of serializedKeys) {
+        if (this.refreshPromises.get(key) === sentinel) this.refreshPromises.delete(key);
+      }
+    };
+    try {
+      Promise.resolve(this.runBackgroundRefresh(refresh))
+        .catch(handleValkeyError)
+        .finally(clearPending);
+    } catch (error) {
+      handleValkeyError(error);
+      clearPending();
+    }
   }
 
   private async refreshBatch<T>(
