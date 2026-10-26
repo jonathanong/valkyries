@@ -132,4 +132,39 @@ describe("dynamic-config.init", () => {
       setValkeyErrorHandler(() => {});
     }
   });
+
+  it("DynamicConfig emits a warning when the error handler throws during initialization", async () => {
+    const handlerError = new Error("handler failed");
+    const unhandled = vi.fn();
+    const emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    setValkeyErrorHandler(() => {
+      throw handlerError;
+    });
+    process.on("unhandledRejection", unhandled);
+    try {
+      const config = new DynamicConfig({
+        key: createDynamicConfigTestKey(),
+        staleTtlSeconds: 10,
+        fieldTypes: { name: "string" },
+        defaultFields: { name: 123 },
+      });
+
+      await expect(config.waitForInitialization()).rejects.toThrow(
+        "Default field name is not of type string",
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(emitWarning).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "DynamicConfig initialization error handler threw",
+          cause: handlerError,
+        }),
+      );
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      emitWarning.mockRestore();
+      setValkeyErrorHandler(() => {});
+    }
+  });
 });

@@ -97,7 +97,16 @@ export class DynamicConfig {
     this.initialization = this.initialize();
     // Observe startup failures in every NODE_ENV so they never become unhandled rejections.
     this.initialization.catch((err) => {
-      handleValkeyError(err);
+      try {
+        handleValkeyError(err);
+      } catch (cause) {
+        // A throwing handler must not turn this observer into an unhandled rejection.
+        process.emitWarning(
+          new AggregateError([err, cause], "DynamicConfig initialization error handler threw", {
+            cause,
+          }),
+        );
+      }
     });
   }
 
