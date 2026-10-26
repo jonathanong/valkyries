@@ -163,9 +163,45 @@ describe("cache.background-refresh", () => {
     const read = cache.cacheGetByAny((key: string) => Promise.resolve({ id: key, version: 2 }));
 
     expect(await read(stale)).toEqual({ id: stale, version: 1 });
-    expect(errors.map((error) => error.message)).toEqual(["wrapper threw"]);
-    expect(await read(stale)).toEqual({ id: stale, version: 1 });
-    expect(wrapper).toHaveBeenCalledTimes(2);
+    await waitFor(() => errors.length === 1);
+    expect(errors[0]!.message).toBe("wrapper threw");
+    await waitFor(async () => {
+      await read(stale);
+      return wrapper.mock.calls.length === 2;
+    });
+    await cache.delete(stale);
+  });
+
+  it("keeps keys pending until a started refresh settles, even if the wrapper rejects first", async () => {
+    const errors = captureErrors();
+    const wrapper = vi.fn((refresh: () => Promise<void>) => {
+      void refresh();
+      return Promise.reject(new Error("wrapper rejected early"));
+    });
+    const cache = makeCache(wrapper);
+    const stale = uniqueKey("stale");
+    await seedStale(cache, stale);
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const batchFn = vi.fn(async (keys: string[]) => {
+      await released;
+      return keys.map((id) => ({ id, version: 2 }));
+    });
+    const read = cache.cacheGetByAnyBatch(batchFn);
+
+    expect(await read([stale])).toEqual([{ id: stale, version: 1 }]);
+    await waitFor(() => errors.length === 1);
+    expect(errors[0]!.message).toBe("wrapper rejected early");
+
+    // The refresh is still running, so a second stale hit does not start another one
+    expect(await read([stale])).toEqual([{ id: stale, version: 1 }]);
+    expect(wrapper).toHaveBeenCalledTimes(1);
+
+    release();
+    await waitFor(async () => ((await cache.get(stale)) as Value | null)?.version === 2);
+    expect(batchFn).toHaveBeenCalledTimes(1);
     await cache.delete(stale);
   });
 

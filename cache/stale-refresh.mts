@@ -21,7 +21,7 @@ export abstract class ValkeyCacheStaleRefresh<K = string> extends ValkeyCacheCor
     if (staleSerializedKeys.length === 0) return;
     const sentinel = this.markRefreshesPending(staleSerializedKeys);
     this.startBackgroundRefresh(staleSerializedKeys, sentinel, () =>
-      this.refreshBatch(staleSerializedKeys, staleKeys, batchFn),
+      this.refreshBatch(staleKeys, batchFn),
     );
   }
 
@@ -45,69 +45,62 @@ export abstract class ValkeyCacheStaleRefresh<K = string> extends ValkeyCacheCor
   }
 
   /**
-   * Hands a detached refresh to runBackgroundRefresh. The refresh reports its own errors, runs at
-   * most once, and a wrapper that throws, rejects, or never calls it cannot reject the caller's
-   * read or leave its keys marked pending.
+   * Hands a detached refresh to runBackgroundRefresh. The refresh reports its own errors and runs
+   * at most once. A wrapper that throws or rejects is reported and never rejects the caller's read.
+   * The pending markers stay set until a started refresh settles, or until the wrapper settles
+   * without starting one, and are only cleared if no newer refresh has replaced them.
    */
   private startBackgroundRefresh(
     serializedKeys: string[],
     sentinel: Promise<void>,
     run: () => Promise<void>,
   ) {
-    let refreshPromise: Promise<void> | undefined;
-    const refresh = () => (refreshPromise ??= run().catch(handleValkeyError));
     const clearPending = () => {
       for (const key of serializedKeys) {
         if (this.refreshPromises.get(key) === sentinel) this.refreshPromises.delete(key);
       }
     };
+    let refreshPromise: Promise<void> | undefined;
+    const refresh = () => (refreshPromise ??= run().catch(handleValkeyError).finally(clearPending));
+    let wrapped: Promise<void>;
     try {
-      Promise.resolve(this.runBackgroundRefresh(refresh))
-        .catch(handleValkeyError)
-        .finally(clearPending);
+      wrapped = Promise.resolve(this.runBackgroundRefresh(refresh));
     } catch (error) {
-      handleValkeyError(error);
-      clearPending();
+      wrapped = Promise.reject(error);
     }
+    wrapped.catch(handleValkeyError).finally(() => {
+      if (!refreshPromise) clearPending();
+    });
   }
 
   private async refreshBatch<T>(
-    serializedKeys: string[],
     keys: K[],
     batchFn: (keys: K[]) => Promise<Array<T | null | undefined>>,
   ) {
-    try {
-      const results = await batchFn(keys);
-      if (!Array.isArray(results) || results.length !== keys.length) {
-        const actualResult = Array.isArray(results) ? results.length : typeof results;
-        handleValkeyError(
-          new Error(
-            `Stale batch refresh returned invalid result: expected array of ${keys.length} items, got ${actualResult}`,
-          ),
-        );
-        return;
-      }
-      const setEntries = keys.map((key, i) => {
-        const value = results[i] ?? null;
-        return { key, value, ttl: value === null ? this.nullTtl : undefined };
-      });
-      await this.setBatchIfNotInvalidated(setEntries);
-    } finally {
-      for (const key of serializedKeys) this.refreshPromises.delete(key);
+    const results = await batchFn(keys);
+    if (!Array.isArray(results) || results.length !== keys.length) {
+      const actualResult = Array.isArray(results) ? results.length : typeof results;
+      handleValkeyError(
+        new Error(
+          `Stale batch refresh returned invalid result: expected array of ${keys.length} items, got ${actualResult}`,
+        ),
+      );
+      return;
     }
+    const setEntries = keys.map((key, i) => {
+      const value = results[i] ?? null;
+      return { key, value, ttl: value === null ? this.nullTtl : undefined };
+    });
+    await this.setBatchIfNotInvalidated(setEntries);
   }
 
   private async refreshSingle(serializedKey: string, fetchValue: () => Promise<unknown>) {
-    try {
-      const result = await fetchValue();
-      if (result === undefined || result === null) {
-        await this.setBySerializedKeyIfNotInvalidated(serializedKey, null, this.nullTtl);
-        return;
-      }
-      await this.setBySerializedKeyIfNotInvalidated(serializedKey, result);
-    } finally {
-      this.refreshPromises.delete(serializedKey);
+    const result = await fetchValue();
+    if (result === undefined || result === null) {
+      await this.setBySerializedKeyIfNotInvalidated(serializedKey, null, this.nullTtl);
+      return;
     }
+    await this.setBySerializedKeyIfNotInvalidated(serializedKey, result);
   }
 
   protected abstract setBatchIfNotInvalidated(
