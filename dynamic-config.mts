@@ -95,12 +95,10 @@ export class DynamicConfig {
     }
     dynamicConfigs.push(this);
     this.initialization = this.initialize();
-    /* v8 ignore next -- tests run with NODE_ENV=test and do not attach startup catch handlers. */
-    if (!isTest) {
-      this.initialization.catch((err) => {
-        handleValkeyError(err);
-      });
-    }
+    // Observe startup failures in every NODE_ENV so they never become unhandled rejections.
+    this.initialization.catch((err) => {
+      handleValkeyError(err);
+    });
   }
 
   async initialize() {

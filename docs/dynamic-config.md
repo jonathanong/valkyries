@@ -56,7 +56,7 @@ type DynamicConfigOptions = {
 
 Only Glide's local `Reached maximum inflight requests` rejection is retried. Other Valkey errors are returned immediately; a failed refresh remains eligible for the next refresh interval, and failed writes leave local fields unchanged.
 
-The constructor starts initialization immediately. Call `waitForInitialization()` before reading fields during startup.
+The constructor starts initialization immediately. Call `waitForInitialization()` before reading fields during startup. An initialization failure is always passed to the Valkey error handler, in every `NODE_ENV`, so it never surfaces as an unhandled rejection; `waitForInitialization()` still rejects with the same error.
 
 Outside `NODE_ENV=test`, constructing multiple `DynamicConfig` instances with the same key throws.
 
