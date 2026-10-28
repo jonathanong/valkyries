@@ -122,4 +122,31 @@ describe("scripts", () => {
 
     expect(() => loadScript("missing.lua", "file:///app/")).toThrow(error);
   });
+
+  describe("with embedded Lua sources (Bun)", () => {
+    beforeEach(() => {
+      vi.doMock("#lua-sources", () => ({ luaSources: { "embedded.lua": "return 4" } }));
+    });
+    afterEach(() => {
+      vi.doUnmock("#lua-sources");
+    });
+
+    it("loadScript returns an embedded script without reading the file", async () => {
+      const { loadScript } = await import("../scripts.mts");
+
+      expect(loadScript("embedded.lua", "file:///app/")).toBe("return 4");
+      expect(mockReadFileSync).not.toHaveBeenCalled();
+    });
+
+    it("loadScript reads a script that is not embedded from disk", async () => {
+      mockReadFileSync.mockReturnValue("return 5");
+      const { loadScript } = await import("../scripts.mts");
+
+      expect(loadScript("caller-owned.lua", "file:///app/")).toBe("return 5");
+      expect(mockReadFileSync).toHaveBeenCalledWith(
+        new URL("file:///app/scripts/caller-owned.lua"),
+        "utf8",
+      );
+    });
+  });
 });

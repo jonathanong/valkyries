@@ -14,6 +14,8 @@ loadScript(relativePath: string, baseUrl: string | URL): string
 
 Loads a Lua script from `scripts/` relative to `baseUrl`.
 
+Under Bun, the package's own scripts are imported as text modules (`lua-sources.bun.mts`, selected by the `bun` condition of the package's `#lua-sources` import), so `bun build --compile` embeds them and the executable reads no script files. Node, and any script name the package does not ship, read the file from disk. When adding a script to `scripts/`, add its import to `lua-sources.bun.mts`; a test fails until the two match.
+
 ## `registerScript(code)`
 
 ```ts
