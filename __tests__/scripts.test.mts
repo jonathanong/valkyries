@@ -125,26 +125,37 @@ describe("scripts", () => {
 
   describe("with embedded Lua sources (Bun)", () => {
     beforeEach(() => {
-      vi.doMock("#lua-sources", () => ({ luaSources: { "embedded.lua": "return 4" } }));
+      vi.doMock("#lua-sources", () => ({ luaSources: { "rate-limiter-add.lua": "return 4" } }));
     });
     afterEach(() => {
       vi.doUnmock("#lua-sources");
     });
 
-    it("loadScript returns an embedded script without reading the file", async () => {
-      const { loadScript } = await import("../scripts.mts");
+    it("loadPackageScript returns an embedded script without reading the file", async () => {
+      const { loadPackageScript } = await import("../package-scripts.mts");
 
-      expect(loadScript("embedded.lua", "file:///app/")).toBe("return 4");
+      expect(loadPackageScript("rate-limiter-add.lua")).toBe("return 4");
       expect(mockReadFileSync).not.toHaveBeenCalled();
     });
 
-    it("loadScript reads a script that is not embedded from disk", async () => {
+    it("loadPackageScript reads a script that is not embedded from the package", async () => {
       mockReadFileSync.mockReturnValue("return 5");
+      const { loadPackageScript } = await import("../package-scripts.mts");
+
+      expect(loadPackageScript("unlisted.lua")).toBe("return 5");
+      expect(mockReadFileSync).toHaveBeenCalledWith(
+        new URL("../scripts/unlisted.lua", import.meta.url),
+        "utf8",
+      );
+    });
+
+    it("loadScript reads a caller's own script even when its name is embedded", async () => {
+      mockReadFileSync.mockReturnValue("return 6");
       const { loadScript } = await import("../scripts.mts");
 
-      expect(loadScript("caller-owned.lua", "file:///app/")).toBe("return 5");
+      expect(loadScript("rate-limiter-add.lua", "file:///app/")).toBe("return 6");
       expect(mockReadFileSync).toHaveBeenCalledWith(
-        new URL("file:///app/scripts/caller-owned.lua"),
+        new URL("file:///app/scripts/rate-limiter-add.lua"),
         "utf8",
       );
     });

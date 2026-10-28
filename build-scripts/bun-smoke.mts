@@ -5,9 +5,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const bun = process.execPath;
-const repoRoot = new URL("../", import.meta.url).pathname;
+const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 
 // The dynamic root import is the shape that loses top-level await through `export *` when bundled.
 const entry = `

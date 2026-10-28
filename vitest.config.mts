@@ -27,6 +27,7 @@ export default defineConfig({
         "cache-utils.mts",
         "cache-metrics.mts",
         "scripts.mts",
+        "package-scripts.mts",
         "lua-sources.node.mts",
         "retry.mts",
         "utils.mts",
