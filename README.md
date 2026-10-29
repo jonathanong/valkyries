@@ -8,7 +8,7 @@ Valkey utilities for Node.js services: cache helpers, Bloom filters, dynamic con
 pnpm add valkyries @valkey/valkey-glide
 ```
 
-`valkyries` is ESM-only and requires Node.js 24 or newer.
+`valkyries` is ESM-only and requires Node.js 24 or newer. It also runs on Bun, including in `bun build --compile` executables, which embed its Lua scripts.
 
 ## Valkey
 

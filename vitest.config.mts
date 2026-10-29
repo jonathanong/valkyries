@@ -1,6 +1,11 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // package.json maps #lua-sources into dist; tests run the sources without a build.
+  resolve: {
+    alias: { "#lua-sources": fileURLToPath(new URL("./lua-sources.node.mts", import.meta.url)) },
+  },
   test: {
     environment: "node",
     globals: false,
@@ -22,6 +27,8 @@ export default defineConfig({
         "cache-utils.mts",
         "cache-metrics.mts",
         "scripts.mts",
+        "package-scripts.mts",
+        "lua-sources.node.mts",
         "retry.mts",
         "utils.mts",
         "clients.mts",

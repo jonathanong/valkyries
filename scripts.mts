@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { Script } from "@valkey/valkey-glide";
-
 const scriptRegistry: Script[] = [];
 let releaseHookRegistered = false;
 

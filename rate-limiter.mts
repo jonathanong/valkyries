@@ -1,5 +1,6 @@
 import { rateLimiterValkeyClient } from "./clients.mts";
-import { loadScript, registerScript } from "./scripts.mts";
+import { loadPackageScript } from "./package-scripts.mts";
+import { registerScript } from "./scripts.mts";
 import type {
   RateLimiterAddAndCheckWindowsOptions,
   RateLimiterConsumeOptions,
@@ -20,16 +21,14 @@ const NAMESPACE = "rate-limiter";
 // Bounds per-key script work: consume() adds `cost` sorted-set members to every key.
 const MAX_CONSUME_COST = 10_000;
 
-const rateLimiterAddScript = registerScript(loadScript("rate-limiter-add.lua", import.meta.url));
-const rateLimiterGetScript = registerScript(loadScript("rate-limiter-get.lua", import.meta.url));
+const rateLimiterAddScript = registerScript(loadPackageScript("rate-limiter-add.lua"));
+const rateLimiterGetScript = registerScript(loadPackageScript("rate-limiter-get.lua"));
 const rateLimiterAddAndCheckScript = registerScript(
-  loadScript("rate-limiter-add-and-check.lua", import.meta.url),
+  loadPackageScript("rate-limiter-add-and-check.lua"),
 );
-const rateLimiterConsumeScript = registerScript(
-  loadScript("rate-limiter-consume.lua", import.meta.url),
-);
+const rateLimiterConsumeScript = registerScript(loadPackageScript("rate-limiter-consume.lua"));
 const rateLimiterAddAndCheckWindowsScript = registerScript(
-  loadScript("rate-limiter-add-and-check-windows.lua", import.meta.url),
+  loadPackageScript("rate-limiter-add-and-check-windows.lua"),
 );
 
 export class RateLimiter {

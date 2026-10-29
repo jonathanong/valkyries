@@ -15,6 +15,7 @@
     "allowSyntheticDefaultImports": true,
     "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
+    "paths": { "#lua-sources": ["./lua-sources.node.mts"] },
     "types": ["node", "vitest"]
   },
   "include": ["**/*.mts"],

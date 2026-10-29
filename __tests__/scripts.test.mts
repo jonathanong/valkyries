@@ -122,4 +122,42 @@ describe("scripts", () => {
 
     expect(() => loadScript("missing.lua", "file:///app/")).toThrow(error);
   });
+
+  describe("with embedded Lua sources (Bun)", () => {
+    beforeEach(() => {
+      vi.doMock("#lua-sources", () => ({ luaSources: { "rate-limiter-add.lua": "return 4" } }));
+    });
+    afterEach(() => {
+      vi.doUnmock("#lua-sources");
+    });
+
+    it("loadPackageScript returns an embedded script without reading the file", async () => {
+      const { loadPackageScript } = await import("../package-scripts.mts");
+
+      expect(loadPackageScript("rate-limiter-add.lua")).toBe("return 4");
+      expect(mockReadFileSync).not.toHaveBeenCalled();
+    });
+
+    it("loadPackageScript reads a script that is not embedded from the package", async () => {
+      mockReadFileSync.mockReturnValue("return 5");
+      const { loadPackageScript } = await import("../package-scripts.mts");
+
+      expect(loadPackageScript("unlisted.lua")).toBe("return 5");
+      expect(mockReadFileSync).toHaveBeenCalledWith(
+        new URL("../scripts/unlisted.lua", import.meta.url),
+        "utf8",
+      );
+    });
+
+    it("loadScript reads a caller's own script even when its name is embedded", async () => {
+      mockReadFileSync.mockReturnValue("return 6");
+      const { loadScript } = await import("../scripts.mts");
+
+      expect(loadScript("rate-limiter-add.lua", "file:///app/")).toBe("return 6");
+      expect(mockReadFileSync).toHaveBeenCalledWith(
+        new URL("file:///app/scripts/rate-limiter-add.lua"),
+        "utf8",
+      );
+    });
+  });
 });

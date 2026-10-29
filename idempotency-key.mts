@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { cacheValkeyClient } from "./clients.mts";
 import { unlinkIfValueMatches } from "./conditional.mts";
-import { loadScript, registerScript } from "./scripts.mts";
+import { loadPackageScript } from "./package-scripts.mts";
+import { registerScript } from "./scripts.mts";
 import { stringifyValkeyResult } from "./valkey-result.mts";
 import { Decoder, type GlideClient } from "@valkey/valkey-glide";
 
@@ -13,10 +14,10 @@ const CHANGED_RESULT = "changed";
 const SCRIPT_RESULT_VALUES = new Set([RESERVED_RESULT, MISSING_RESULT, CHANGED_RESULT]);
 
 const idempotencyKeyReserveScript = registerScript(
-  loadScript("idempotency-key-reserve.lua", import.meta.url),
+  loadPackageScript("idempotency-key-reserve.lua"),
 );
 const idempotencyKeyCompleteIfCurrentScript = registerScript(
-  loadScript("idempotency-key-complete-if-current.lua", import.meta.url),
+  loadPackageScript("idempotency-key-complete-if-current.lua"),
 );
 export type GetAndDeleteOptions = {
   /** Optional Valkey client. Defaults to the package cache client. */

@@ -1,14 +1,13 @@
 import { cacheValkeyClient } from "./clients.mts";
-import { loadScript, registerScript } from "./scripts.mts";
+import { loadPackageScript } from "./package-scripts.mts";
+import { registerScript } from "./scripts.mts";
 import { stringifyValkeyResult } from "./valkey-result.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 
-const unlinkIfValueMatchesScript = registerScript(
-  loadScript("unlink-if-value-matches.lua", import.meta.url),
-);
+const unlinkIfValueMatchesScript = registerScript(loadPackageScript("unlink-if-value-matches.lua"));
 
 const pexpireIfValueMatchesScript = registerScript(
-  loadScript("pexpire-if-value-matches.lua", import.meta.url),
+  loadPackageScript("pexpire-if-value-matches.lua"),
 );
 
 export type UnlinkIfValueMatchesOptions = {

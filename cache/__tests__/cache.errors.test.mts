@@ -35,7 +35,8 @@ describe("cache.errors", () => {
     // Overwrite with invalid JSON that can be decoded as UTF-8 but fails JSON.parse
     await cacheValkeyClient.set(cacheKey, Buffer.from("{invalid json", "utf8"));
 
-    await expect(cache.get(key)).rejects.toThrow("Expected property name");
+    // The message is engine-specific (V8 vs JavaScriptCore), so assert the error type.
+    await expect(cache.get(key)).rejects.toThrow(SyntaxError);
 
     // Clean up the test key
     await cache.delete(key);

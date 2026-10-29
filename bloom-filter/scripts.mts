@@ -1,25 +1,22 @@
-import { loadScript, registerScript } from "../scripts.mts";
+import { loadPackageScript } from "../package-scripts.mts";
+import { registerScript } from "../scripts.mts";
 
-export const bloomFilterExistsScript = registerScript(
-  loadScript("bloom-filter-exists.lua", new URL("../", import.meta.url)),
-);
+export const bloomFilterExistsScript = registerScript(loadPackageScript("bloom-filter-exists.lua"));
 export const bloomFilterMexistsScript = registerScript(
-  loadScript("bloom-filter-mexists.lua", new URL("../", import.meta.url)),
+  loadPackageScript("bloom-filter-mexists.lua"),
 );
 export const bloomFilterExistsIfReadyScript = registerScript(
-  loadScript("bloom-filter-exists-if-ready.lua", new URL("../", import.meta.url)),
+  loadPackageScript("bloom-filter-exists-if-ready.lua"),
 );
 export const bloomFilterMexistsIfReadyScript = registerScript(
-  loadScript("bloom-filter-mexists-if-ready.lua", new URL("../", import.meta.url)),
+  loadPackageScript("bloom-filter-mexists-if-ready.lua"),
 );
-export const bloomFilterAddScript = registerScript(
-  loadScript("bloom-filter-add.lua", new URL("../", import.meta.url)),
-);
+export const bloomFilterAddScript = registerScript(loadPackageScript("bloom-filter-add.lua"));
 export const bloomFilterReserveScript = registerScript(
-  loadScript("bloom-filter-reserve.lua", new URL("../", import.meta.url)),
+  loadPackageScript("bloom-filter-reserve.lua"),
 );
 export const bloomFilterEnsureExistsScript = registerScript(
-  loadScript("bloom-filter-ensure-exists.lua", new URL("../", import.meta.url)),
+  loadPackageScript("bloom-filter-ensure-exists.lua"),
 );
 
 export const LUA_UNPACK_BATCH_SIZE = 5_000;

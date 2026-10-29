@@ -1,5 +1,6 @@
 import { dynamicConfigValkeyClient } from "../clients.mts";
-import { loadScript, registerScript } from "../scripts.mts";
+import { loadPackageScript } from "../package-scripts.mts";
+import { registerScript } from "../scripts.mts";
 import type { DynamicConfigField, DynamicConfigFieldType } from "../types.mts";
 import type { GlideClient } from "@valkey/valkey-glide";
 import { retrySaturationError } from "../retry.mts";
@@ -11,7 +12,7 @@ export type DynamicConfigInflightRetryOptions = {
 };
 
 export const dynamicConfigSetFieldsScript = registerScript(
-  loadScript("dynamic-config-set-fields.lua", new URL("../", import.meta.url)),
+  loadPackageScript("dynamic-config-set-fields.lua"),
 );
 
 export async function getDynamicConfigFieldsMap(

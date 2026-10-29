@@ -21,6 +21,12 @@
   "type": "module",
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "imports": {
+    "#lua-sources": {
+      "bun": "./dist/lua-sources.bun.mjs",
+      "default": "./dist/lua-sources.node.mjs"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -74,6 +80,8 @@
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:bun": "bun --bun vitest run",
+    "test:bun-smoke": "bun build-scripts/bun-smoke.mts",
     "lint": "pnpm run oxlint && pnpm run oxfmt:check && pnpm run lint:lua",
     "lint:lua": "selene scripts",
     "oxlint": "oxlint --type-aware --deny-warnings",
