@@ -1,23 +1,3 @@
-// Bun's bundler does not await a top-level-await module (clients.mts and everything that imports
-// it) reached only through `export * from`, so a dynamically imported compiled bundle would see
-// undefined clients. A side-effect import of the same module takes the awaited path.
-import "./events.mts";
-import "./rate-limiter.mts";
-import "./cache.mts";
-import "./bloom-filter.mts";
-import "./dynamic-config.mts";
-import "./idempotency-key.mts";
-import "./conditional.mts";
-import "./lease.mts";
-import "./clients.mts";
-import "./shutdown.mts";
-import "./scripts.mts";
-import "./utils.mts";
-import "./errors.mts";
-import "./key-normalization.mts";
-import "./cache-metrics.mts";
-import "./retry.mts";
-
 export * from "./events.mts";
 export * from "./rate-limiter.mts";
 export * from "./cache.mts";

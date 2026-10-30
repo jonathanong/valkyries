@@ -32,6 +32,7 @@ export default defineConfig({
         "retry.mts",
         "utils.mts",
         "clients.mts",
+        "lazy-client.mts",
         "expiry.mts",
         "scan.mts",
         "diagnostics.mts",

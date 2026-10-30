@@ -10,10 +10,21 @@ import { fileURLToPath } from "node:url";
 const bun = process.execPath;
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 
-// The dynamic root import is the shape that loses top-level await through `export *` when bundled.
+// Bun's bundler does not await a top-level-await module reached through `export *` from a
+// dynamically imported module, so this app reaches the package only through such a barrel, next to
+// an application module that creates its own client at load.
+const holder = `
+import { getValkeyClientByUrl } from "valkyries";
+export const appValkeyClient = getValkeyClientByUrl(process.env.VALKEY_URL ?? "redis://localhost:6379", { name: "app" });
+`;
+const barrel = `
+export * from "valkyries";
+export * from "./holder.mjs";
+`;
 const entry = `
-const { RateLimiter, acquireRenewableLease, cacheValkeyClient } = await import("valkyries");
+const { RateLimiter, acquireRenewableLease, appValkeyClient, cacheValkeyClient } = await import("./barrel.mjs");
 if (typeof cacheValkeyClient?.ping !== "function") throw new Error("cacheValkeyClient is not initialized");
+if ((await appValkeyClient?.ping()) !== "PONG") throw new Error("appValkeyClient is not initialized");
 const prefix = "bun-smoke:" + crypto.randomUUID();
 try {
   const limiter = new RateLimiter({ prefix, ttlSeconds: 60 });
@@ -55,8 +66,14 @@ try {
   const app = join(work, "app");
   mkdirSync(app);
   writeFileSync(join(app, "package.json"), JSON.stringify({ type: "module", private: true }));
+  writeFileSync(join(app, "holder.mjs"), holder);
+  writeFileSync(join(app, "barrel.mjs"), barrel);
   writeFileSync(join(app, "entry.mjs"), entry);
   run(bun, ["add", join(work, tarball)], app);
+  // require() of an ES module graph throws ERR_REQUIRE_ASYNC_MODULE if any module in it awaits at
+  // the top level.
+  run("node", ["-e", 'require("valkyries")'], app);
+  console.log("no top-level await: ok");
   expectOk("bun runtime", run(bun, ["entry.mjs"], app));
 
   const bin = join(work, "bin");
