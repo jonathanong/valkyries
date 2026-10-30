@@ -7,6 +7,7 @@ import {
 } from "@valkey/valkey-glide";
 import { config } from "./config.mts";
 import { handleValkeyError } from "./errors.mts";
+import { connectLazyValkeyClient, createLazyValkeyClient } from "./lazy-client.mts";
 
 const CLIENT_CLOSE_SETTLE_MS = 100;
 const SUBSCRIPTION_CONNECTION_TIMEOUT_MS = 2_000;
@@ -24,15 +25,14 @@ export type ValkeyClientOptions = {
 };
 
 export const urlsToClients = new Map<string, GlideClient>();
-const urlsToClientPromises = new Map<string, Promise<GlideClient>>();
 
-export const cacheValkeyClient = await upsertValkeyClientByUrl(config.cache_url, {
+export const cacheValkeyClient = getValkeyClientByUrl(config.cache_url, {
   readFrom: "preferReplica",
 });
-export const rateLimiterValkeyClient = await upsertValkeyClientByUrl(config.rate_limiter_url, {
+export const rateLimiterValkeyClient = getValkeyClientByUrl(config.rate_limiter_url, {
   readFrom: "primary",
 });
-export const dynamicConfigValkeyClient = await upsertValkeyClientByUrl(config.dynamic_config_url, {
+export const dynamicConfigValkeyClient = getValkeyClientByUrl(config.dynamic_config_url, {
   readFrom: "preferReplica",
 });
 
@@ -179,35 +179,36 @@ function handlePubSubMessage(msg: PubSubMsg): void {
   for (const handler of pubSubMessageHandlers) handler(msg);
 }
 
+/**
+ * Returns the package-managed client for `url` and `options`, creating it if needed. The native
+ * client is created on its first command, so this is synchronous and needs no top-level await.
+ */
+export function getValkeyClientByUrl(url: string, options?: ValkeyClientOptions): GlideClient {
+  const cacheKey = [
+    url,
+    options?.readFrom ?? "default",
+    options?.lazyConnect ?? true,
+    options?.inflightRequestsLimit ?? config.inflight_requests_limit,
+    options?.requestTimeout ?? config.request_timeout_ms,
+    options?.name ?? "",
+  ].join(":");
+  let client = urlsToClients.get(cacheKey);
+  if (!client) {
+    // Parse now so a malformed URL still throws where the client is declared.
+    client = createLazyValkeyClient(glideConfigFromUrl(url, options));
+    urlsToClients.set(cacheKey, client);
+  }
+  return client;
+}
+
+/** Same client as `getValkeyClientByUrl()`, resolved once its native client has been created. */
 export async function upsertValkeyClientByUrl(
   url: string,
   options?: ValkeyClientOptions,
 ): Promise<GlideClient> {
-  const effectiveLazyConnect = options?.lazyConnect ?? true;
-  const effectiveInflight = options?.inflightRequestsLimit ?? config.inflight_requests_limit;
-  const effectiveTimeout = options?.requestTimeout ?? config.request_timeout_ms;
-  const cacheKey = [
-    url,
-    options?.readFrom ?? "default",
-    effectiveLazyConnect,
-    effectiveInflight,
-    effectiveTimeout,
-    options?.name ?? "",
-  ].join(":");
-  const existing = urlsToClients.get(cacheKey);
-  if (existing) return existing;
-  const inFlight = urlsToClientPromises.get(cacheKey);
-  if (inFlight) return inFlight;
-  const clientPromise = GlideClient.createClient(glideConfigFromUrl(url, options))
-    .then((client) => {
-      urlsToClients.set(cacheKey, client);
-      return client;
-    })
-    .finally(() => {
-      urlsToClientPromises.delete(cacheKey);
-    });
-  urlsToClientPromises.set(cacheKey, clientPromise);
-  return await clientPromise;
+  const client = getValkeyClientByUrl(url, options);
+  await connectLazyValkeyClient(client);
+  return client;
 }
 
 export function glideConfigFromUrl(url: string, options?: ValkeyClientOptions) {

@@ -42,6 +42,8 @@ describe("public api", () => {
     expect(api.registerScript).toBeTypeOf("function");
     expect(api.loadScript).toBeTypeOf("function");
     expect(api.urlsToClients).toBeInstanceOf(Map);
+    expect(api.getValkeyClientByUrl).toBeTypeOf("function");
+    expect(api).not.toHaveProperty("createLazyValkeyClient");
     expect(api.multiCacheGetByAnyBatch).toBeTypeOf("function");
     expect(api.scanAndUnlinkKeys).toBeTypeOf("function");
     expect(api.scanAndUnlinkKeyPrefixes).toBeTypeOf("function");

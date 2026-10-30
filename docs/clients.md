@@ -6,7 +6,9 @@ The package exports default clients for simple applications:
 - `rateLimiterValkeyClient`
 - `dynamicConfigValkeyClient`
 
-Connections are deduplicated by URL, read preference, and lazy-connect setting through `upsertValkeyClientByUrl()`.
+Clients are deduplicated by URL, read preference, lazy-connect setting, inflight-requests limit, request timeout, and name through `getValkeyClientByUrl()` and `upsertValkeyClientByUrl()`.
+
+The package has no top-level await. Package clients are created synchronously and create their native Glide client on their first command, so modules that hold a client can be re-exported through `export *` and bundled by Bun.
 
 For libraries, tests, and multi-tenant services, pass a `GlideClient` directly to `ValkeyCache`, `ValkeyBloomFilter`, `DynamicConfig`, or `RateLimiter`.
 
@@ -18,7 +20,7 @@ Use `closeValkeyClients()` (or the argument-free `onGracefulShutdown()`) to clos
 import { cacheValkeyClient, rateLimiterValkeyClient, dynamicConfigValkeyClient } from "valkyries";
 ```
 
-Default clients are created at module load:
+Default clients are declared at module load and create their native Glide client on their first command:
 
 - `cacheValkeyClient`: uses `VALKEY_CACHE_URL` or `VALKEY_URL`, reads from replicas when possible.
 - `rateLimiterValkeyClient`: uses `VALKEY_RATE_LIMITER_URL`, `VALKEY_CACHE_URL`, or `VALKEY_URL`, and reads from primary.
@@ -50,6 +52,29 @@ const urlsToClients: Map<string, GlideClient>;
 
 Registry of package-managed clients keyed by URL, read preference, lazy-connect, inflight-requests limit, and request timeout.
 
+## `getValkeyClientByUrl(url, options?)`
+
+```ts
+getValkeyClientByUrl(url: string, options?: ValkeyClientOptions): GlideClient
+```
+
+Synchronously returns an existing matching client or creates and stores a new one. Use it to create clients at module load without top-level await:
+
+```ts
+export const sessionValkeyClient = getValkeyClientByUrl(process.env.VALKEY_SESSION_URL!, {
+  name: "session",
+  readFrom: "primary",
+});
+```
+
+The returned client is a `GlideClient` (`instanceof GlideClient` is true) whose native client is created on its first command:
+
+- Concurrent first commands share one creation. If creation fails, those commands reject with the error and the next command retries.
+- A malformed URL throws immediately.
+- `lazyConnect: false` connects when the native client is created, on the first command. Use `await upsertValkeyClientByUrl()` to connect at startup.
+- `close()` before the first command creates nothing. During creation, it closes the native client once created. After `close()`, commands reject with Glide's `ClosingError`.
+- `getStatistics()` works before the first command. Other synchronous Glide methods (such as `tryGetPubSubMessage()`) return a promise until the native client exists.
+
 ## `upsertValkeyClientByUrl(url, options?)`
 
 ```ts
@@ -59,7 +84,7 @@ upsertValkeyClientByUrl(
 ): Promise<GlideClient>
 ```
 
-Returns an existing matching client or creates and stores a new one.
+Returns the same client as `getValkeyClientByUrl()` once its native client has been created, rejecting if creation fails.
 
 ## `glideConfigFromUrl(url, options?)`
 
