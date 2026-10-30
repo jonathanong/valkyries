@@ -71,8 +71,21 @@ export function createLazyValkeyClient(config: GlideClientConfig): GlideClient {
     closed = { message: errorMessage as string | undefined };
     client?.close(closed.message);
   });
-  // Statistics are process-wide, so they need no native client.
-  define("getStatistics", () => GlideClient.prototype.getStatistics.call(client ?? lazy));
+  // Glide's other public synchronous methods keep their synchronous results before creation.
+  define("tryGetPubSubMessage", (decoder?: unknown) => {
+    if (client)
+      return client.tryGetPubSubMessage(
+        decoder as Parameters<GlideClient["tryGetPubSubMessage"]>[0],
+      );
+    if (closed) throw new ClosingError(CLOSED_MESSAGE);
+    // No native client means no push notifications have arrived yet.
+    return null;
+  });
+  // Statistics are process-wide, and the pub/sub config helpers read only their argument.
+  for (const name of ["getStatistics", "isPubsubConfigured", "getPubsubCallbackAndContext"]) {
+    const method = (GlideClient.prototype as unknown as Record<string, Method>)[name];
+    define(name, (...args) => method.apply(client ?? lazy, args));
+  }
   connectors.set(lazy, connect);
   return lazy;
 }

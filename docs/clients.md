@@ -73,7 +73,7 @@ The returned client is a `GlideClient` (`instanceof GlideClient` is true) whose 
 - A malformed URL throws immediately.
 - `lazyConnect: false` connects when the native client is created, on the first command. Use `await upsertValkeyClientByUrl()` to connect at startup.
 - `close()` before the first command creates nothing. During creation, it closes the native client once created. After `close()`, commands reject with Glide's `ClosingError`.
-- `getStatistics()` works before the first command. Other synchronous Glide methods (such as `tryGetPubSubMessage()`) return a promise until the native client exists.
+- Glide's synchronous methods stay synchronous before the first command: `getStatistics()` works, and `tryGetPubSubMessage()` returns `null` because no messages can have arrived.
 
 ## `upsertValkeyClientByUrl(url, options?)`
 

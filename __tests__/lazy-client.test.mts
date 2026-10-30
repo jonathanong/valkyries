@@ -124,6 +124,27 @@ describe("createLazyValkeyClient", () => {
     expect(lazy.getStatistics()).toBeTypeOf("object");
   });
 
+  it("synchronous pub/sub methods return synchronous results before creation", async () => {
+    const created = Object.assign(fakeClient(), {
+      tryGetPubSubMessage: vi.fn(() => ({ channel: "c", message: "m" })),
+    });
+    const createClient = vi.spyOn(GlideClient, "createClient").mockResolvedValue(created);
+    const lazy = createLazyValkeyClient(config);
+
+    expect(lazy.tryGetPubSubMessage()).toBeNull();
+    expect(lazy.isPubsubConfigured(config)).toBe(false);
+    expect(lazy.getPubsubCallbackAndContext(config)).toEqual([null, null]);
+    expect(createClient).not.toHaveBeenCalled();
+
+    await lazy.get("a");
+    expect(lazy.tryGetPubSubMessage()).toEqual({ channel: "c", message: "m" });
+
+    lazy.close();
+    const unused = createLazyValkeyClient(config);
+    unused.close();
+    expect(() => unused.tryGetPubSubMessage()).toThrow(ClosingError);
+  });
+
   it("connectLazyValkeyClient creates the native client now", async () => {
     const createClient = vi.spyOn(GlideClient, "createClient").mockResolvedValue(fakeClient());
     const lazy = createLazyValkeyClient(config);
