@@ -7,9 +7,15 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      npm-dependencies:
+      oxc:
         patterns:
-          - "*"
+          - oxlint
+          - oxfmt
+          - oxlint-tsgolint
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -17,6 +23,6 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      github-actions:
+      actions:
         patterns:
-          - "*"
+          - actions/*
